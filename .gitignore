@@ -10,3 +10,8 @@ storage/previews/*
 !storage/uploads/.gitkeep
 !storage/generated/.gitkeep
 !storage/previews/.gitkeep
+
+# build / deploy cache
+.netlify/
+tsconfig.tsbuildinfo
+.next/
