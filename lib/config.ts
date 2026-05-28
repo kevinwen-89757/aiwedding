@@ -1,6 +1,9 @@
 export const appConfig = {
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
   localStorageRoot: process.env.LOCAL_STORAGE_ROOT ?? "./storage",
+  storageDriver: process.env.STORAGE_DRIVER === "supabase" ? "supabase" : "local",
+  supabaseUrl: process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL,
+  supabaseStorageBucket: process.env.SUPABASE_STORAGE_BUCKET ?? "ai-wedding-assets",
   generationMode: process.env.GENERATION_MODE === "manual" || process.env.GENERATION_MODE === "api" ? process.env.GENERATION_MODE : "mock",
   generationProvider: process.env.GENERATION_PROVIDER === "apimart" ? "apimart" : null,
   geminiApiKey: process.env.GOOGLE_GEMINI_API_KEY,

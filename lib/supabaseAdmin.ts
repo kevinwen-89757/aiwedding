@@ -1,10 +1,11 @@
 import { createClient } from "@supabase/supabase-js";
+import { appConfig } from "@/lib/config";
 
 export function getSupabaseAdmin() {
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    throw new Error("Supabase is not configured. Keep GEMINI_MOCK_GENERATION=true for local MVP mode.");
+  if (!appConfig.supabaseUrl || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    throw new Error("Supabase is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY for STORAGE_DRIVER=supabase.");
   }
-  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
+  return createClient(appConfig.supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false }
   });
 }

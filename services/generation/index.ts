@@ -5,8 +5,8 @@ import { addLocalAsset, clearLocalGeneratedAssets, getLocalOrder, updateLocalOrd
 import type { LocalOrder } from "@/services/localStore";
 import { generateWeddingImage } from "@/services/gemini";
 import { buildPreviewGenerationPlan, getSelectedThemes } from "@/services/prompts";
-import { readStoredFile, saveGeneratedImage, saveGeneratedImageBuffer, saveGeneratedUpload } from "@/services/storage";
-import { createWatermarkedPreview, imageMetadata } from "@/services/watermark";
+import { readStoredFile, saveGeneratedImage, saveGeneratedImageBuffer, saveGeneratedUpload, savePreviewImageBuffer } from "@/services/storage";
+import { createWatermarkedPreviewBuffer, imageMetadataFromBuffer } from "@/services/watermark";
 import { apimartCreateGenerationTask, apimartDownloadImage, apimartPollTask, apimartUploadImage } from "@/services/generation/providers/apimart";
 
 export type GenerationTaskItem = {
@@ -110,13 +110,12 @@ export async function mockGenerate(order: LocalOrder) {
     const item = plan[index];
     const imageBuffer = await generateWeddingImage(reference, uploadAsset.mime_type, buildRuntimeGenerationPrompt(item.rawPrompt), index);
     const generated = await saveGeneratedImage(imageBuffer, order.id, index);
-    const previewRelativePath = path.posix.join("previews", order.id, `${String(index + 1).padStart(2, "0")}.jpg`);
-    await createWatermarkedPreview(generated.absolutePath, previewRelativePath);
-    const metadata = await imageMetadata(generated.absolutePath);
+    const preview = await savePreviewImageBuffer(await createWatermarkedPreviewBuffer(imageBuffer), order.id, item.imageNumber);
+    const metadata = await imageMetadataFromBuffer(imageBuffer);
     await addLocalAsset(order.id, {
       kind: "generated",
       original_path: generated.relativePath,
-      preview_path: previewRelativePath,
+      preview_path: preview.relativePath,
       mime_type: generated.mimeType,
       width: metadata.width,
       height: metadata.height,
@@ -208,13 +207,12 @@ export async function apiGenerate(order: LocalOrder) {
     const taskResult = await apimartPollTask(task.taskId);
     const downloaded = await apimartDownloadImage(taskResult.imageUrl);
     const generated = await saveGeneratedImageBuffer(downloaded.buffer, order.id, index, downloaded.mimeType);
-    const previewRelativePath = path.posix.join("previews", order.id, `${String(index + 1).padStart(2, "0")}.jpg`);
-    await createWatermarkedPreview(generated.absolutePath, previewRelativePath);
-    const metadata = await imageMetadata(generated.absolutePath);
+    const preview = await savePreviewImageBuffer(await createWatermarkedPreviewBuffer(downloaded.buffer), order.id, item.imageNumber);
+    const metadata = await imageMetadataFromBuffer(downloaded.buffer);
     await addLocalAsset(order.id, {
       kind: "generated",
       original_path: generated.relativePath,
-      preview_path: previewRelativePath,
+      preview_path: preview.relativePath,
       mime_type: generated.mimeType,
       width: metadata.width,
       height: metadata.height,
@@ -276,13 +274,13 @@ export async function uploadManualGeneratedResults(orderId: string, files: File[
     const imageNumber = existingCount + index + 1;
     const planItem = plan[imageNumber - 1];
     const generated = await saveGeneratedUpload(files[index], orderId, imageNumber - 1);
-    const previewRelativePath = path.posix.join("previews", orderId, `${String(imageNumber).padStart(2, "0")}.jpg`);
-    await createWatermarkedPreview(generated.absolutePath, previewRelativePath);
-    const metadata = await imageMetadata(generated.absolutePath);
+    const generatedBuffer = await readStoredFile(generated.relativePath);
+    const preview = await savePreviewImageBuffer(await createWatermarkedPreviewBuffer(generatedBuffer), orderId, imageNumber);
+    const metadata = await imageMetadataFromBuffer(generatedBuffer);
     await addLocalAsset(orderId, {
       kind: "generated",
       original_path: generated.relativePath,
-      preview_path: previewRelativePath,
+      preview_path: preview.relativePath,
       mime_type: generated.mimeType,
       width: metadata.width,
       height: metadata.height,

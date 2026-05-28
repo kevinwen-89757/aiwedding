@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { appConfig } from "@/lib/config";
 import type { Order, OrderAsset, OrderStatus } from "@/lib/types";
 import { absoluteStoragePath } from "@/services/storage";
+import { assertSupabaseStoreReady, getSupabaseOrder, listSupabaseOrders, saveSupabaseOrder } from "@/services/supabaseStore";
 
 type LocalPayment = { id: string; order_id: string; kind: "deposit" | "selection"; status: "paid"; amount_cents: number; provider: "mock"; provider_trade_no: string; paid_at: string; created_at: string };
 export type LocalOrder = Order & { order_assets: OrderAsset[]; payments: LocalPayment[] };
@@ -22,8 +23,40 @@ function stripRuntimeInstructionFromPrompt(prompt: string | null) {
   if (!prompt) return prompt;
   return runtimeInstructionLines.reduce((value, line) => value.replaceAll(`\n${line}`, "").replaceAll(line, ""), prompt).trim();
 }
+function isSupabaseStore() {
+  return appConfig.storageDriver === "supabase";
+}
+function normalizeOrder(order: LocalOrder): LocalOrder {
+  return {
+    ...order,
+    selected_theme_ids: order.selected_theme_ids ?? [],
+    uploadedPhoto: order.uploadedPhoto ?? null,
+    uploadedPhotos: order.uploadedPhotos ?? {},
+    order_assets: (order.order_assets ?? []).map((asset) => {
+      const rawGenerationType = asset.generation_type as OrderAsset["generation_type"] | "cover_bonus";
+      return {
+        ...asset,
+        person_role: asset.person_role ?? null,
+        theme_id: asset.theme_id ?? null,
+        theme_name: asset.theme_name ?? null,
+        prompt_id: asset.prompt_id ?? null,
+        prompt_name: asset.prompt_name ?? null,
+        aspect_ratio: asset.aspect_ratio ?? null,
+        is_cover_prompt: asset.is_cover_prompt ?? false,
+        generation_type: rawGenerationType === "cover_bonus" ? "sweet_spot" : rawGenerationType ?? null,
+        generation_prompt: stripRuntimeInstructionFromPrompt(asset.generation_prompt),
+        prompt_index: asset.prompt_index ?? null
+      };
+    }),
+    payments: order.payments ?? []
+  };
+}
 
 export async function ensureLocalStore() {
+  if (isSupabaseStore()) {
+    await assertSupabaseStoreReady();
+    return;
+  }
   await mkdir(absoluteStoragePath(""), { recursive: true });
   await mkdir(absoluteStoragePath("uploads"), { recursive: true });
   await mkdir(absoluteStoragePath("generated"), { recursive: true });
@@ -34,37 +67,20 @@ export async function ensureLocalStore() {
 }
 
 async function readStore(): Promise<LocalStore> {
+  if (isSupabaseStore()) {
+    return { orders: (await listSupabaseOrders()).map((order) => normalizeOrder(order)) };
+  }
   await ensureLocalStore();
   const raw = await readFile(ordersJsonPath(), "utf8");
   if (!raw.trim()) return emptyStore();
   const parsed = JSON.parse(raw) as LocalStore;
-  return {
-    orders: (parsed.orders ?? []).map((order) => ({
-      ...order,
-      selected_theme_ids: order.selected_theme_ids ?? [],
-      uploadedPhoto: order.uploadedPhoto ?? null,
-      uploadedPhotos: order.uploadedPhotos ?? {},
-      order_assets: (order.order_assets ?? []).map((asset) => {
-        const rawGenerationType = asset.generation_type as OrderAsset["generation_type"] | "cover_bonus";
-        return {
-          ...asset,
-          person_role: asset.person_role ?? null,
-          theme_id: asset.theme_id ?? null,
-          theme_name: asset.theme_name ?? null,
-          prompt_id: asset.prompt_id ?? null,
-          prompt_name: asset.prompt_name ?? null,
-          aspect_ratio: asset.aspect_ratio ?? null,
-          is_cover_prompt: asset.is_cover_prompt ?? false,
-          generation_type: rawGenerationType === "cover_bonus" ? "sweet_spot" : rawGenerationType ?? null,
-          generation_prompt: stripRuntimeInstructionFromPrompt(asset.generation_prompt),
-          prompt_index: asset.prompt_index ?? null
-        };
-      }),
-      payments: order.payments ?? []
-    }))
-  };
+  return { orders: (parsed.orders ?? []).map((order) => normalizeOrder(order)) };
 }
 async function writeStore(store: LocalStore) {
+  if (isSupabaseStore()) {
+    await Promise.all(store.orders.map((order) => saveSupabaseOrder(order)));
+    return;
+  }
   await mkdir(path.dirname(ordersJsonPath()), { recursive: true });
   await mkdir(absoluteStoragePath("backups"), { recursive: true });
   const nextJson = `${JSON.stringify(store, null, 2)}\n`;
@@ -84,16 +100,34 @@ async function writeStore(store: LocalStore) {
 function str(value: FormDataEntryValue | null) { return typeof value === "string" && value.trim() ? value.trim() : null; }
 
 export async function listLocalOrders() { return (await readStore()).orders.sort((a, b) => b.created_at.localeCompare(a.created_at)); }
-export async function getLocalOrder(orderId: string) { return (await readStore()).orders.find((order) => order.id === orderId) ?? null; }
+export async function getLocalOrder(orderId: string) {
+  if (isSupabaseStore()) {
+    const order = await getSupabaseOrder(orderId);
+    return order ? normalizeOrder(order) : null;
+  }
+  return (await readStore()).orders.find((order) => order.id === orderId) ?? null;
+}
 export async function createLocalOrder(input: { customerName: FormDataEntryValue | null; customerPhone: FormDataEntryValue | null; customerEmail: FormDataEntryValue | null }) {
-  const store = await readStore();
   const now = new Date().toISOString();
   const order: LocalOrder = { id: randomUUID(), customer_name: str(input.customerName), customer_phone: str(input.customerPhone), customer_email: str(input.customerEmail), status: "awaiting_deposit", deposit_amount_cents: 990, selected_count: 0, selection_amount_cents: 0, selected_theme_ids: [], uploadedPhoto: null, uploadedPhotos: {}, admin_note: null, reject_reason: null, created_at: now, updated_at: now, order_assets: [], payments: [] };
+  if (isSupabaseStore()) {
+    await saveSupabaseOrder(order);
+    return order;
+  }
+  const store = await readStore();
   store.orders.push(order);
   await writeStore(store);
   return order;
 }
 async function updateLocalOrder(orderId: string, updater: (order: LocalOrder) => LocalOrder) {
+  if (isSupabaseStore()) {
+    const current = await getSupabaseOrder(orderId);
+    if (!current) return null;
+    const updated = updater(structuredClone(normalizeOrder(current)));
+    updated.updated_at = new Date().toISOString();
+    await saveSupabaseOrder(updated);
+    return updated;
+  }
   const store = await readStore();
   const index = store.orders.findIndex((order) => order.id === orderId);
   if (index < 0) return null;

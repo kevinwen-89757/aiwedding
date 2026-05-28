@@ -95,7 +95,10 @@ APIMART_RESOLUTION=1K
 APIMART_TIMEOUT_MS=180000
 GENERATION_TEST_LIMIT=1
 ADMIN_TOKEN=请换成一段长随机复杂字符串
-LOCAL_STORAGE_ROOT=/tmp/ai-wedding-photo-mvp-storage
+STORAGE_DRIVER=supabase
+SUPABASE_URL=你的 Supabase Project URL
+SUPABASE_SERVICE_ROLE_KEY=你的 Supabase service_role key
+SUPABASE_STORAGE_BUCKET=ai-wedding-assets
 ```
 
 注意：
@@ -103,4 +106,7 @@ LOCAL_STORAGE_ROOT=/tmp/ai-wedding-photo-mvp-storage
 - `.env.local` 只用于本地开发，已在 `.gitignore` 中忽略，不要提交。
 - 不要在生产环境使用 `dev-admin-token`。
 - `APIMART_API_KEY` 是密钥，只能放在 Netlify 环境变量里。
-- 当前订单、上传图、生成图和水印预览图仍使用本地文件存储。Netlify 函数文件系统的 `/tmp` 适合临时文件，不适合长期保存真实订单资产；正式接单前建议迁移到 Netlify Blobs 或对象存储。
+- `SUPABASE_SERVICE_ROLE_KEY` 只能服务端使用，不要加 `NEXT_PUBLIC_`，不要暴露到前端。
+- 上线前在 Supabase SQL Editor 执行 `supabase/schema.sql`，创建 `orders` 表和私有 Storage bucket `ai-wedding-assets`。
+- `LOCAL_STORAGE_ROOT` 只用于本地开发；Netlify 正式环境不要依赖 `/tmp` 保存订单或图片。
+- `STORAGE_DRIVER=supabase` 时，订单保存到 Supabase Database，上传图、生成原图和水印预览图保存到 Supabase Storage，并继续通过服务端 `/api/download` 读取。
