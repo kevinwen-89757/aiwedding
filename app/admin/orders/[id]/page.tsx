@@ -40,6 +40,8 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
   const references = getReferenceUploadAssets(order);
   const upload = references.primary;
   const generated = order.order_assets.filter((asset: OrderAsset) => asset.kind === "generated");
+  const generationJobs = order.generation_jobs ?? [];
+  const activeGenerationJobs = generationJobs.filter((job) => job.status !== "completed" && job.status !== "failed");
   const selectedThemes = getSelectedThemes(order.selected_theme_ids ?? []);
   const themeText = order.selected_theme_ids?.length ? selectedThemes.map((theme) => theme.themeName).join("、") : "未选择";
   const generationPlan = order.selected_theme_ids?.length ? getOrderGenerationPlan(order) : [];
@@ -93,7 +95,7 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
           </div>
         </div>
 
-        <AdminOrderActions orderId={order.id} hasGenerated={generated.length > 0} status={order.status} hasThemes={Boolean(order.selected_theme_ids?.length)} adminNote={order.admin_note} updatedAt={order.updated_at} />
+        <AdminOrderActions orderId={order.id} hasGenerated={generated.length > 0} status={order.status} hasThemes={Boolean(order.selected_theme_ids?.length)} adminNote={order.admin_note} updatedAt={order.updated_at} hasActiveGenerationTasks={activeGenerationJobs.length > 0} />
       </section>
 
       {generationPlan.length > 0 ? (
@@ -118,6 +120,7 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
                 </div>
                 <h3>已选风格</h3>
                 <p className="muted">{themeText}</p>
+                {generationJobs.length > 0 ? <div className="generation-job-list"><h3>APIMart 任务状态</h3>{generationJobs.map((job) => <p key={job.task_id} className="muted">图 {job.image_number}：{job.status} · 查询 {job.poll_count} 次 · task_id: {job.task_id}{job.error ? ` · ${job.error}` : ""}</p>)}</div> : null}
                 {isApiMode ? null : <><ManualGeneratedUploadForm orderId={order.id} planCount={generationPlan.length} generatedCount={generated.length} /><CompleteManualGenerationButton orderId={order.id} disabled={generated.length < 1} /></>}
               </div>
               <div className="table-wrap manual-table">

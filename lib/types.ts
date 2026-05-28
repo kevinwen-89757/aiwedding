@@ -55,6 +55,27 @@ export type UploadedPersonPhoto = {
   size?: number;
 };
 
+export type GenerationJob = {
+  provider: "apimart";
+  task_id: string;
+  image_number: number;
+  status: "created" | "polling" | "completed" | "failed";
+  poll_count: number;
+  result_image_url?: string | null;
+  error?: string | null;
+  theme_id: string | null;
+  theme_name: string | null;
+  prompt_id: string | null;
+  prompt_name: string | null;
+  aspect_ratio: string | null;
+  is_cover_prompt: boolean;
+  generation_type: "normal" | "sweet_spot" | "manual_extra" | null;
+  prompt_index: number | null;
+  raw_prompt: string | null;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Order = {
   id: string;
   customer_name: string | null;
@@ -70,6 +91,7 @@ export type Order = {
     bride?: UploadedPersonPhoto;
     groom?: UploadedPersonPhoto;
   };
+  generation_jobs?: GenerationJob[];
   admin_note: string | null;
   reject_reason: string | null;
   created_at: string;

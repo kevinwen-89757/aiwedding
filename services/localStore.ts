@@ -32,6 +32,7 @@ function normalizeOrder(order: LocalOrder): LocalOrder {
     selected_theme_ids: order.selected_theme_ids ?? [],
     uploadedPhoto: order.uploadedPhoto ?? null,
     uploadedPhotos: order.uploadedPhotos ?? {},
+    generation_jobs: order.generation_jobs ?? [],
     order_assets: (order.order_assets ?? []).map((asset) => {
       const rawGenerationType = asset.generation_type as OrderAsset["generation_type"] | "cover_bonus";
       return {
@@ -119,7 +120,7 @@ export async function createLocalOrder(input: { customerName: FormDataEntryValue
   await writeStore(store);
   return order;
 }
-async function updateLocalOrder(orderId: string, updater: (order: LocalOrder) => LocalOrder) {
+export async function updateLocalOrder(orderId: string, updater: (order: LocalOrder) => LocalOrder) {
   if (isSupabaseStore()) {
     const current = await getSupabaseOrder(orderId);
     if (!current) return null;

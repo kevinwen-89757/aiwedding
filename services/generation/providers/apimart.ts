@@ -16,6 +16,13 @@ export type ApimartTaskResult = {
   raw: unknown;
 };
 
+export type ApimartTaskStatus = {
+  taskId: string;
+  status: string;
+  imageUrl: string | null;
+  raw: unknown;
+};
+
 function apiKey() {
   if (!appConfig.apimartApiKey) throw new Error("APIMART_API_KEY 未配置，无法调用 APIMart 生成。");
   return appConfig.apimartApiKey;
@@ -124,6 +131,10 @@ function failureFromJson(json: unknown, fallback: string) {
   return redactSecret(message ? `${fallback}: ${message}` : fallback);
 }
 
+function summarizeJson(json: unknown) {
+  return redactSecret(JSON.stringify(json).slice(0, 600));
+}
+
 export async function apimartUploadImage(input: { buffer: Buffer; mimeType: string; filename?: string }) {
   const form = new FormData();
   const filename = input.filename ?? `upload${input.mimeType === "image/png" ? ".png" : input.mimeType === "image/webp" ? ".webp" : ".jpg"}`;
@@ -184,8 +195,18 @@ async function getTask(taskId: string) {
     headers: { Authorization: `Bearer ${apiKey()}` }
   });
   const json = await readJson(response);
-  if (!response.ok) throw new Error(failureFromJson(json, `APIMart 查询任务失败，HTTP ${response.status}`));
+  if (!response.ok) throw new Error(`${failureFromJson(json, `APIMart 查询任务失败，HTTP ${response.status}`)}；body=${summarizeJson(json)}`);
   return json;
+}
+
+export async function apimartGetTaskStatus(taskId: string): Promise<ApimartTaskStatus> {
+  const raw = await getTask(taskId);
+  return {
+    taskId,
+    status: extractTaskStatus(raw).toLowerCase(),
+    imageUrl: extractResultImageUrl(raw),
+    raw
+  };
 }
 
 function wait(ms: number) {
