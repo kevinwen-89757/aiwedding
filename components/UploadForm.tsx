@@ -14,6 +14,7 @@ export function UploadForm() {
   const [submitting, setSubmitting] = useState(false);
   const [authorized, setAuthorized] = useState(false);
   const [understood, setUnderstood] = useState(false);
+  const [customerName, setCustomerName] = useState("");
   const [previews, setPreviews] = useState<PreviewState>({ bride: "", groom: "" });
   const previewsRef = useRef(previews);
   useEffect(() => {
@@ -35,11 +36,12 @@ export function UploadForm() {
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError("");
     const form = new FormData(event.currentTarget);
+    const name = typeof form.get("customerName") === "string" ? String(form.get("customerName")).trim() : "";
     const bridePhoto = form.get("bridePhoto");
     const groomPhoto = form.get("groomPhoto");
     const hasBride = bridePhoto instanceof File && bridePhoto.size > 0;
     const hasGroom = groomPhoto instanceof File && groomPhoto.size > 0;
-    if (!hasBride && !hasGroom) { setError("请分别上传新娘和新郎正脸照"); return; }
+    if (!name) { setError("请填写姓名，方便后台识别订单"); return; }
     if (!hasBride) { setError("请上传新娘正脸照"); return; }
     if (!hasGroom) { setError("请上传新郎正脸照"); return; }
     if (!authorized || !understood) { setError("请先勾选两项隐私授权与 AI 生成说明。"); return; }
@@ -52,9 +54,10 @@ export function UploadForm() {
       router.push(`/orders/${payload.orderId}/pay?kind=deposit`);
     } catch (err) { setSubmitting(false); setError(err instanceof Error ? err.message : "上传失败，请查看终端日志"); }
   }
+  const hasName = Boolean(customerName.trim());
   const hasBothPhotos = Boolean(previews.bride && previews.groom);
   const hasConsent = authorized && understood;
-  const canSubmit = hasBothPhotos && hasConsent;
-  const hint = !hasBothPhotos ? "请分别上传新娘和新郎正脸照。" : !hasConsent ? "请勾选两项授权后继续。" : "";
-  return <form className="form upload-form" onSubmit={onSubmit}><div className="form-row"><label>姓名 / 订单备注<input name="customerName" placeholder="用于后台识别订单" /></label><label>手机<input name="customerPhone" placeholder="可选" /></label></div><div className="upload-file-row"><label className="upload-file-control">新娘正脸照<input name="bridePhoto" type="file" accept="image/png,image/jpeg,image/webp" required onChange={(event)=>updatePreview("bride", event.currentTarget.files)} /></label><label className="upload-file-control">新郎正脸照<input name="groomPhoto" type="file" accept="image/png,image/jpeg,image/webp" required onChange={(event)=>updatePreview("groom", event.currentTarget.files)} /></label></div><div className="upload-preview-grid"><figure className="upload-local-preview">{previews.bride ? <img src={previews.bride} alt="新娘正脸照预览" /> : <span>新娘正脸照预览</span>}<figcaption>新娘正脸照</figcaption></figure><figure className="upload-local-preview">{previews.groom ? <img src={previews.groom} alt="新郎正脸照预览" /> : <span>新郎正脸照预览</span>}<figcaption>新郎正脸照</figcaption></figure></div><label className="check-row"><input checked={authorized} onChange={(event)=>setAuthorized(event.target.checked)} type="checkbox" />我确认上传的是本人照片，或已获得照片中人物授权</label><label className="check-row"><input checked={understood} onChange={(event)=>setUnderstood(event.target.checked)} type="checkbox" />我理解生成结果为 AI 写真图，不等同于真实拍摄照片</label>{hint ? <p className="small auth-hint">{hint}</p> : null}{error ? <div className="error-box">{error}</div> : null}<button disabled={submitting || !canSubmit} type="submit"><Upload size={18} />{submitting ? "上传中..." : "上传并创建订单"}</button></form>;
+  const canSubmit = hasName && hasBothPhotos && hasConsent;
+  const hint = !hasName ? "请填写姓名，方便后台识别订单。" : !previews.bride ? "请上传新娘正脸照。" : !previews.groom ? "请上传新郎正脸照。" : !hasConsent ? "请勾选两项授权后继续。" : "";
+  return <form className="form upload-form" onSubmit={onSubmit}><div className="form-row"><label><span>姓名 / 订单备注 <span className="required-star">*</span></span><input name="customerName" placeholder="用于后台识别订单" required value={customerName} onChange={(event)=>setCustomerName(event.currentTarget.value)} /></label><label>手机<input name="customerPhone" placeholder="可选" /></label></div><div className="upload-file-row"><label className="upload-file-control"><span>新娘正脸照 <span className="required-star">*</span></span><input name="bridePhoto" type="file" accept="image/png,image/jpeg,image/webp" required onChange={(event)=>updatePreview("bride", event.currentTarget.files)} /></label><label className="upload-file-control"><span>新郎正脸照 <span className="required-star">*</span></span><input name="groomPhoto" type="file" accept="image/png,image/jpeg,image/webp" required onChange={(event)=>updatePreview("groom", event.currentTarget.files)} /></label></div><div className="upload-preview-grid"><figure className="upload-local-preview">{previews.bride ? <img src={previews.bride} alt="新娘正脸照预览" /> : <span>新娘正脸照预览</span>}<figcaption>新娘正脸照</figcaption></figure><figure className="upload-local-preview">{previews.groom ? <img src={previews.groom} alt="新郎正脸照预览" /> : <span>新郎正脸照预览</span>}<figcaption>新郎正脸照</figcaption></figure></div><label className="check-row"><input checked={authorized} onChange={(event)=>setAuthorized(event.target.checked)} type="checkbox" />我确认上传的是本人照片，或已获得照片中人物授权</label><label className="check-row"><input checked={understood} onChange={(event)=>setUnderstood(event.target.checked)} type="checkbox" />我理解生成结果为 AI 写真图，不等同于真实拍摄照片</label>{hint ? <p className="small auth-hint">{hint}</p> : null}{error ? <div className="error-box">{error}</div> : null}<button disabled={submitting || !canSubmit} type="submit"><Upload size={18} />{submitting ? "上传中..." : "上传并创建订单"}</button></form>;
 }

@@ -104,6 +104,11 @@ main {
   margin-top: 12px;
 }
 
+.required-star {
+  color: var(--bad);
+  font-weight: 900;
+}
+
 .chat-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -396,6 +401,32 @@ main {
   object-position: center;
   border-radius: 18px;
   background: #f5f3ef;
+}
+
+.download-page {
+  padding-bottom: 96px;
+}
+
+.download-photo-grid {
+  padding-bottom: 48px;
+}
+
+.download-preview-frame {
+  cursor: default;
+}
+
+.download-preview-frame:hover {
+  outline: 0 solid transparent;
+  transform: none;
+}
+
+.download-photo-action {
+  position: absolute;
+  right: 16px;
+  bottom: 16px;
+  z-index: 3;
+  min-height: 42px;
+  padding: 11px 16px;
 }
 
 .selection-hover-hint {
