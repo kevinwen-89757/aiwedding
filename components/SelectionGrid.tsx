@@ -1,0 +1,162 @@
+"use client";
+import { LockKeyhole, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
+import { formatCny } from "@/lib/money";
+import type { OrderAsset } from "@/lib/types";
+
+function previewUrl(asset: OrderAsset) {
+  return `/api/download/${asset.id}?preview=1`;
+}
+
+function fixedAspectRatio(asset: OrderAsset) {
+  if (asset.aspect_ratio === "16:9") return "16 / 9";
+  if (asset.aspect_ratio === "3:4") return "3 / 4";
+  if (asset.width && asset.height) return `${asset.width} / ${asset.height}`;
+  return null;
+}
+
+function ratioKind(asset: OrderAsset) {
+  return asset.aspect_ratio === "16:9" ? "landscape" : "portrait";
+}
+
+type SelectionRow = {
+  id: string;
+  kind: "mixed" | "single-landscape" | "single-portrait" | "portrait-pair" | "portrait-triple";
+  assets: OrderAsset[];
+};
+
+function buildSelectionRows(assets: OrderAsset[]) {
+  const rows: SelectionRow[] = [];
+  let index = 0;
+  while (index < assets.length) {
+    const current = assets[index];
+    const next = assets[index + 1];
+    const third = assets[index + 2];
+    const currentKind = ratioKind(current);
+    const nextKind = next ? ratioKind(next) : null;
+    const thirdKind = third ? ratioKind(third) : null;
+    if (next && currentKind !== nextKind) {
+      rows.push({ id: `${current.id}-${next.id}`, kind: "mixed", assets: [current, next] });
+      index += 2;
+    } else if (currentKind === "portrait" && nextKind === "portrait" && thirdKind === "portrait") {
+      rows.push({ id: `${current.id}-${next.id}-${third.id}`, kind: "portrait-triple", assets: [current, next, third] });
+      index += 3;
+    } else if (currentKind === "portrait" && nextKind === "portrait") {
+      rows.push({ id: `${current.id}-${next.id}`, kind: "portrait-pair", assets: [current, next] });
+      index += 2;
+    } else {
+      rows.push({ id: current.id, kind: currentKind === "landscape" ? "single-landscape" : "single-portrait", assets: [current] });
+      index += 1;
+    }
+  }
+  return rows;
+}
+
+export function SelectionGrid({ orderId, assets }: { orderId: string; assets: OrderAsset[] }) {
+  const router = useRouter();
+  const [selected, setSelected] = useState(() => new Set(assets.filter((asset) => asset.is_selected).map((asset) => asset.id)));
+  const [saving, setSaving] = useState(false);
+  const [previewAsset, setPreviewAsset] = useState<OrderAsset | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const total = useMemo(() => selected.size * 6000, [selected]);
+  const rows = useMemo(() => buildSelectionRows(assets), [assets]);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+  useEffect(() => {
+    if (!previewAsset) return;
+    const originalOverflow = document.body.style.overflow;
+    const originalOverscroll = document.body.style.overscrollBehavior;
+    document.body.style.overflow = "hidden";
+    document.body.style.overscrollBehavior = "contain";
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setPreviewAsset(null);
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.overscrollBehavior = originalOverscroll;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [previewAsset]);
+  function aspectRatioFor(asset: OrderAsset) {
+    return fixedAspectRatio(asset) ?? "3 / 4";
+  }
+  function toggle(assetId: string) {
+    const next = new Set(selected);
+    if (next.has(assetId)) next.delete(assetId);
+    else next.add(assetId);
+    setSelected(next);
+  }
+  function toggleFromKeyboard(event: React.KeyboardEvent<HTMLDivElement>, assetId: string) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    toggle(assetId);
+  }
+  async function submit() {
+    setSaving(true);
+    const response = await fetch(`/api/orders/${orderId}/selection`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ assetIds: Array.from(selected) }) });
+    setSaving(false);
+    if (response.ok) { router.push(`/orders/${orderId}/pay?kind=selection`); router.refresh(); }
+  }
+  return <>
+    <div className="photo-grid selection-photo-grid">
+      {rows.map((row)=>(
+        <div className={`selection-row selection-row-${row.kind}`} key={row.id}>
+          {row.assets.map((asset)=>(
+            <article className={`photo-tile selection-photo-tile selection-photo-tile-${ratioKind(asset)}`} key={asset.id}>
+              <div
+                className={`selection-preview-frame${selected.has(asset.id) ? " selected" : ""}`}
+                style={{ aspectRatio: aspectRatioFor(asset) }}
+                role="button"
+                tabIndex={0}
+                onClick={() => toggle(asset.id)}
+                onKeyDown={(event) => toggleFromKeyboard(event, asset.id)}
+                aria-pressed={selected.has(asset.id)}
+                aria-label={`选择第 ${asset.sort_order} 张`}
+              >
+                <img src={previewUrl(asset)} alt={`带水印预览图 ${asset.sort_order}`} />
+                <span className="selection-hover-hint">{selected.has(asset.id) ? "已选中" : "点击选择这张"}</span>
+                <span className="selection-photo-number">#{asset.sort_order}</span>
+                <button
+                  className={`selection-check-button${selected.has(asset.id) ? " selected" : ""}`}
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    toggle(asset.id);
+                  }}
+                  aria-pressed={selected.has(asset.id)}
+                  aria-label={`选择第 ${asset.sort_order} 张`}
+                >
+                  {selected.has(asset.id) ? "✓" : ""}
+                </button>
+                <button
+                  className="selection-preview-action"
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setPreviewAsset(asset);
+                  }}
+                >
+                  预览大图
+                </button>
+              </div>
+            </article>
+          ))}
+        </div>
+      ))}
+    </div>
+    <div className="sticky-bar"><strong>{selected.size > 0 ? `已选 ${selected.size} 张` : "请选择喜欢的照片"}</strong><div className="actions"><strong>解锁 4K 原图 {formatCny(total)}</strong><button onClick={submit} disabled={saving || selected.size === 0}><LockKeyhole size={18} />{saving ? "保存中..." : selected.size > 0 ? `确认解锁 ${selected.size} 张 · ${formatCny(total)}` : "先选择想解锁的照片"}</button></div></div>
+    {mounted && previewAsset ? createPortal((
+      <div className="selection-lightbox" role="dialog" aria-modal="true" aria-label={`第 ${previewAsset.sort_order} 张带水印预览图`} onClick={() => setPreviewAsset(null)}>
+        <button className="selection-lightbox-close" type="button" onClick={() => setPreviewAsset(null)} aria-label="关闭预览"><X size={22} /></button>
+        <div className="selection-lightbox-content" onClick={(event) => event.stopPropagation()}>
+          <p>#{previewAsset.sort_order} 高清水印预览 · 解锁后即可下载 4K 无水印原图</p>
+          <img src={previewUrl(previewAsset)} alt={`带水印大图预览 ${previewAsset.sort_order}`} />
+        </div>
+      </div>
+    ), document.body) : null}
+  </>;
+}
