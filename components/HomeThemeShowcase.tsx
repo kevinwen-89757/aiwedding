@@ -1,13 +1,21 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import type { MouseEvent, SyntheticEvent } from "react";
+import { useState } from "react";
+import type { SyntheticEvent } from "react";
+import { ThemePreviewModal } from "@/components/ThemePreviewModal";
 import type { WeddingTheme } from "@/services/prompts";
 
 type ImageRatio = "portrait" | "landscape" | "square";
-type CollageSlot = "portrait-1" | "landscape-1" | "portrait-2" | "landscape-2" | "portrait-3";
+
+function ratioFromAspectRatio(aspectRatio?: string | null): ImageRatio | null {
+  if (!aspectRatio) return null;
+  const [rawWidth, rawHeight] = aspectRatio.split(":").map((value) => Number.parseFloat(value));
+  if (!rawWidth || !rawHeight) return null;
+  const ratio = rawWidth / rawHeight;
+  if (ratio >= 1.35) return "landscape";
+  return ratio > .86 ? "square" : "portrait";
+}
 
 function ratioFromLoadEvent(event: SyntheticEvent<HTMLImageElement>): ImageRatio | null {
   const { naturalWidth: width, naturalHeight: height } = event.currentTarget;
@@ -15,25 +23,6 @@ function ratioFromLoadEvent(event: SyntheticEvent<HTMLImageElement>): ImageRatio
   const ratio = width / height;
   if (ratio >= 1.35) return "landscape";
   return ratio > .86 ? "square" : "portrait";
-}
-
-function arrangeCollageImages(images: string[], ratios: Record<string, ImageRatio>) {
-  const slots: { slot: CollageSlot; preferred: ImageRatio }[] = [
-    { slot: "portrait-1", preferred: "portrait" },
-    { slot: "landscape-1", preferred: "landscape" },
-    { slot: "portrait-2", preferred: "portrait" },
-    { slot: "landscape-2", preferred: "landscape" },
-    { slot: "portrait-3", preferred: "portrait" }
-  ];
-  const used = new Set<string>();
-  const byPreference = (preferred: ImageRatio) => images.find((src) => !used.has(src) && (preferred === "landscape" ? ratios[src] === "landscape" : ratios[src] !== "landscape"));
-  const fallback = () => images.find((src) => !used.has(src));
-  return slots.flatMap(({ slot, preferred }) => {
-    const src = byPreference(preferred) ?? fallback();
-    if (!src) return [];
-    used.add(src);
-    return [{ src, slot, index: images.indexOf(src) }];
-  });
 }
 
 function ThemeImage({ src, alt, className = "", onRatio }: { src?: string; alt: string; className?: string; onRatio?: (ratio: ImageRatio) => void }) {
@@ -51,74 +40,38 @@ function ThemeImage({ src, alt, className = "", onRatio }: { src?: string; alt: 
 
 export function HomeThemeShowcase({ themes }: { themes: WeddingTheme[] }) {
   const [previewTheme, setPreviewTheme] = useState<WeddingTheme | null>(null);
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [imageRatios, setImageRatios] = useState<Record<string, ImageRatio>>({});
   const hiddenTags = new Set(["首图", "cover", "prompt", "sweet_spot", "附送", "推荐生成", "A图"]);
-  const previewImages = previewTheme?.galleryImages?.slice(0, 5) ?? [];
-  const collageImages = arrangeCollageImages(previewImages, imageRatios);
-  const activeLightboxImage = lightboxIndex === null ? null : previewImages[lightboxIndex];
-  const lightboxNumber = lightboxIndex === null ? 0 : lightboxIndex + 1;
 
   function closePreview() {
     setPreviewTheme(null);
-    setLightboxIndex(null);
   }
-
-  function closeFromBackdrop(event: MouseEvent<HTMLDivElement>) {
-    if (event.target === event.currentTarget) closePreview();
-  }
-
-  function closeLightboxFromBackdrop(event: MouseEvent<HTMLDivElement>) {
-    if (event.target === event.currentTarget) setLightboxIndex(null);
-  }
-
-  function moveLightbox(step: number) {
-    if (lightboxIndex === null || previewImages.length < 2) return;
-    setLightboxIndex((lightboxIndex + step + previewImages.length) % previewImages.length);
-  }
-
-  function renderGalleryItem(slot: CollageSlot) {
-    const item = collageImages.find((entry) => entry.slot === slot);
-    if (!item || !previewTheme) return null;
-    const ratio = imageRatios[item.src] ?? (slot.includes("landscape") ? "landscape" : "portrait");
-    return (
-      <button type="button" className={`theme-gallery-item theme-gallery-item-${slot} theme-gallery-item-${ratio}`} onClick={() => setLightboxIndex(item.index)} aria-label={`查看第 ${item.index + 1} 张`}>
-        <img src={item.src} alt={`${previewTheme.themeName} 样片 ${item.index + 1}`} onLoad={(event) => {
-          const nextRatio = ratioFromLoadEvent(event);
-          if (!nextRatio) return;
-          setImageRatios((current) => current[item.src] === nextRatio ? current : { ...current, [item.src]: nextRatio });
-        }} />
-      </button>
-    );
-  }
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        if (lightboxIndex !== null) setLightboxIndex(null);
-        else if (previewTheme) closePreview();
-      }
-      if (lightboxIndex !== null && previewImages.length > 1 && event.key === "ArrowLeft") setLightboxIndex((lightboxIndex - 1 + previewImages.length) % previewImages.length);
-      if (lightboxIndex !== null && previewImages.length > 1 && event.key === "ArrowRight") setLightboxIndex((lightboxIndex + 1) % previewImages.length);
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [lightboxIndex, previewTheme, previewImages.length]);
 
   return (
     <>
       <div className="theme-grid home-theme-grid">
         {themes.map((theme) => {
-          const coverImage = theme.coverImages?.[0] ?? theme.coverImage ?? theme.galleryImages?.[0];
-          const coverRatio = coverImage ? imageRatios[coverImage] ?? "portrait" : "portrait";
+          const coverImages = (theme.coverImages?.length ? theme.coverImages : [theme.coverImage ?? theme.galleryImages?.[0]].filter((src): src is string => Boolean(src))).slice(0, 5);
+          const coverImage = coverImages[0];
+          const coverRatio = coverImage ? imageRatios[coverImage] ?? ratioFromAspectRatio(theme.prompts[0]?.aspectRatio) ?? "portrait" : "portrait";
           const tags = theme.prompts[0].styleTags.filter((tag) => !hiddenTags.has(tag)).slice(0, 4);
           return (
             <article key={theme.themeId} className={`theme-card theme-card-${coverRatio}`}>
               <button type="button" className="theme-select-area home-theme-preview-area" onClick={() => setPreviewTheme(theme)}>
-                <span className="theme-cover-grid">
-                  <span className={`theme-cover-shot theme-cover-shot-${coverRatio} ${coverRatio === "landscape" ? "landscapeCoverStage" : "portraitCoverStage"}`}>
-                    <ThemeImage src={coverImage} alt={theme.themeName} className="theme-cover-image" onRatio={(nextRatio) => coverImage ? setImageRatios((current) => current[coverImage] === nextRatio ? current : { ...current, [coverImage]: nextRatio }) : undefined} />
-                  </span>
+                <span className="theme-cover-grid home-theme-cover-grid">
+                  {coverImages.map((src, index) => {
+                    const imageRatio = imageRatios[src] ?? ratioFromAspectRatio(theme.prompts[index]?.aspectRatio) ?? (src === coverImage ? coverRatio : "portrait");
+                    return (
+                      <span className={`theme-cover-shot home-theme-cover-shot home-theme-cover-shot-${imageRatio}`} key={src}>
+                        <ThemeImage src={src} alt={`${theme.themeName} 样片 ${index + 1}`} className="theme-cover-image" onRatio={(nextRatio) => setImageRatios((current) => current[src] === nextRatio ? current : { ...current, [src]: nextRatio })} />
+                      </span>
+                    );
+                  })}
+                  {coverImages.length === 0 ? (
+                    <span className="theme-cover-shot home-theme-cover-shot home-theme-cover-shot-portrait">
+                      <ThemeImage alt={theme.themeName} className="theme-cover-image" />
+                    </span>
+                  ) : null}
                 </span>
                 <span className="theme-card-head"><strong>{theme.themeName}</strong></span>
                 <span className="muted">{theme.themeDescription}</span>
@@ -130,40 +83,7 @@ export function HomeThemeShowcase({ themes }: { themes: WeddingTheme[] }) {
         })}
       </div>
       <div className="home-theme-cta"><Link className="button" href="/upload">上传正脸照，生成我的婚纱预览</Link></div>
-      {previewTheme ? (
-        <div className="theme-modal-backdrop" role="dialog" aria-modal="true" aria-label={previewTheme.themeName} onClick={closeFromBackdrop}>
-          <div className="theme-modal">
-            <div className="theme-modal-head">
-              <div>
-                <h2>{previewTheme.themeName}</h2>
-                <p className="muted">{previewTheme.themeDescription}</p>
-              </div>
-              <button type="button" className="button secondary icon-button" onClick={closePreview} aria-label="关闭"><X size={18} /></button>
-            </div>
-            <div className={`theme-gallery theme-gallery-count-${Math.max(previewImages.length, 1)}`}>
-              {renderGalleryItem("portrait-1")}
-              <div className="theme-gallery-side">
-                <div className="theme-gallery-row">{renderGalleryItem("landscape-1")}{renderGalleryItem("portrait-2")}</div>
-                <div className="theme-gallery-row">{renderGalleryItem("portrait-3")}{renderGalleryItem("landscape-2")}</div>
-              </div>
-              {previewImages.length === 0 ? <div className="theme-gallery-item theme-gallery-item-portrait"><ThemeImage alt={previewTheme.themeName} /></div> : null}
-            </div>
-            <div className="theme-modal-actions">
-              <button type="button" className="button secondary" onClick={closePreview}>关闭</button>
-              <Link className="button" href="/upload">上传正脸照，生成我的婚纱预览</Link>
-            </div>
-          </div>
-          {activeLightboxImage ? (
-            <div className="image-lightbox" role="dialog" aria-modal="true" aria-label="图片预览" onClick={closeLightboxFromBackdrop}>
-              <button type="button" className="button secondary icon-button image-lightbox-close" onClick={() => setLightboxIndex(null)} aria-label="关闭"><X size={18} /></button>
-              {previewImages.length > 1 ? <button type="button" className="button secondary icon-button image-lightbox-prev" onClick={() => moveLightbox(-1)} aria-label="上一张"><ChevronLeft size={22} /></button> : null}
-              <img src={activeLightboxImage} alt={`${previewTheme.themeName} ${lightboxNumber} / ${previewImages.length}`} />
-              <span className="image-lightbox-count">{lightboxNumber} / {previewImages.length}</span>
-              {previewImages.length > 1 ? <button type="button" className="button secondary icon-button image-lightbox-next" onClick={() => moveLightbox(1)} aria-label="下一张"><ChevronRight size={22} /></button> : null}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
+      <ThemePreviewModal theme={previewTheme} onClose={closePreview} action={<Link className="button" href="/upload">上传正脸照，生成我的婚纱预览</Link>} />
     </>
   );
 }
