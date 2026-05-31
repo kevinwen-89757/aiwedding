@@ -51,27 +51,16 @@ export function HomeThemeShowcase({ themes }: { themes: WeddingTheme[] }) {
     <>
       <div className="theme-grid home-theme-grid">
         {themes.map((theme) => {
-          const coverImages = (theme.coverImages?.length ? theme.coverImages : [theme.coverImage ?? theme.galleryImages?.[0]].filter((src): src is string => Boolean(src))).slice(0, 5);
-          const coverImage = coverImages[0];
+          const coverImage = theme.coverImages?.[0] ?? theme.coverImage ?? theme.galleryImages?.[0];
           const coverRatio = coverImage ? imageRatios[coverImage] ?? ratioFromAspectRatio(theme.prompts[0]?.aspectRatio) ?? "portrait" : "portrait";
           const tags = theme.prompts[0].styleTags.filter((tag) => !hiddenTags.has(tag)).slice(0, 4);
           return (
             <article key={theme.themeId} className={`theme-card theme-card-${coverRatio}`}>
               <button type="button" className="theme-select-area home-theme-preview-area" onClick={() => setPreviewTheme(theme)}>
-                <span className="theme-cover-grid home-theme-cover-grid">
-                  {coverImages.map((src, index) => {
-                    const imageRatio = imageRatios[src] ?? ratioFromAspectRatio(theme.prompts[index]?.aspectRatio) ?? (src === coverImage ? coverRatio : "portrait");
-                    return (
-                      <span className={`theme-cover-shot home-theme-cover-shot home-theme-cover-shot-${imageRatio}`} key={src}>
-                        <ThemeImage src={src} alt={`${theme.themeName} 样片 ${index + 1}`} className="theme-cover-image" onRatio={(nextRatio) => setImageRatios((current) => current[src] === nextRatio ? current : { ...current, [src]: nextRatio })} />
-                      </span>
-                    );
-                  })}
-                  {coverImages.length === 0 ? (
-                    <span className="theme-cover-shot home-theme-cover-shot home-theme-cover-shot-portrait">
-                      <ThemeImage alt={theme.themeName} className="theme-cover-image" />
-                    </span>
-                  ) : null}
+                <span className="theme-cover-grid">
+                  <span className={`theme-cover-shot theme-cover-shot-${coverRatio} ${coverRatio === "landscape" ? "landscapeCoverStage" : "portraitCoverStage"}`}>
+                    <ThemeImage src={coverImage} alt={theme.themeName} className="theme-cover-image" onRatio={(nextRatio) => coverImage ? setImageRatios((current) => current[coverImage] === nextRatio ? current : { ...current, [coverImage]: nextRatio }) : undefined} />
+                  </span>
                 </span>
                 <span className="theme-card-head"><strong>{theme.themeName}</strong></span>
                 <span className="muted">{theme.themeDescription}</span>
