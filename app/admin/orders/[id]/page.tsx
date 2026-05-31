@@ -41,6 +41,8 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
   const upload = references.primary;
   const generated = order.order_assets.filter((asset: OrderAsset) => asset.kind === "generated");
   const generationJobs = order.generation_jobs ?? [];
+  const generatedAssetsCount = generated.length;
+  const hasGenerationTaskId = generationJobs.some((job) => Boolean(job.task_id));
   const activeGenerationJobs = generationJobs.filter((job) => job.status !== "completed" && job.status !== "failed");
   const selectedThemes = getSelectedThemes(order.selected_theme_ids ?? []);
   const themeText = order.selected_theme_ids?.length ? selectedThemes.map((theme) => theme.themeName).join("、") : "未选择";
@@ -106,6 +108,7 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
               <div>
                 <h2>{isApiMode ? "API 生成任务" : "人工生成任务包"}</h2>
                 <p className="muted">当前模式：{appConfig.generationMode}。Provider：{appConfig.generationProvider ?? "未配置"}。模型：{appConfig.apimartModel}。当前生成数量：{runtimeConfig.plannedTaskCount}。当前画质：{runtimeConfig.apimartResolution}。timeoutMs：{runtimeConfig.apimartTimeoutMs}。GENERATION_TEST_LIMIT 实际值：{runtimeConfig.generationTestLimit ?? "未设置"}。</p>
+                <p className="muted">诊断：effectiveLimit={runtimeConfig.effectiveLimit ?? "未设置"}。plan.length={generationPlan.length}。generation_jobs.length={generationJobs.length}。generated_assets.length={generatedAssetsCount}。resolution={runtimeConfig.apimartResolution}。timeoutMs={runtimeConfig.apimartTimeoutMs}。</p>
               </div>
               <div className="actions">
                 {upload ? <a className="button secondary" href={`/api/download/${upload.id}`} download>下载用户上传原图</a> : null}
@@ -121,7 +124,7 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
                 </div>
                 <h3>已选风格</h3>
                 <p className="muted">{themeText}</p>
-                {generationJobs.length > 0 ? <div className="generation-job-list"><h3>APIMart 任务状态</h3>{generationJobs.map((job) => <p key={job.task_id} className="muted">图 {job.image_number}：{job.status} · resolution={job.resolution ?? appConfig.apimartResolution} · 查询 {job.poll_count} 次 · task_id: {job.task_id}{job.error ? ` · ${job.error}` : ""}</p>)}</div> : null}
+                {order.status === "generating" || generationJobs.length > 0 ? <div className="generation-job-list"><h3>APIMart 任务状态</h3><p className="muted">effectiveLimit={runtimeConfig.effectiveLimit ?? "未设置"} · plan.length={generationPlan.length} · generation_jobs.length={generationJobs.length} · generated_assets.length={generatedAssetsCount} · resolution={runtimeConfig.apimartResolution} · timeoutMs={runtimeConfig.apimartTimeoutMs}</p>{generationJobs.length < generationPlan.length ? <p className="muted">警告：generation_jobs 数量少于计划任务数。</p> : null}{generationJobs.length === 0 ? <p className="muted">等待创建 APIMart 任务 / 排队中</p> : null}{hasGenerationTaskId ? <p className="muted">已进入 APIMart 队列，可点击“查询生成结果”。</p> : null}{generationJobs.map((job) => <p key={job.task_id} className="muted">图 {job.image_number}：{job.status} · resolution={job.resolution ?? appConfig.apimartResolution} · 查询 {job.poll_count} 次 · task_id: {job.task_id}{job.error ? ` · ${job.error}` : ""}</p>)}</div> : null}
                 {isApiMode ? null : <><ManualGeneratedUploadForm orderId={order.id} planCount={generationPlan.length} generatedCount={generated.length} /><CompleteManualGenerationButton orderId={order.id} disabled={generated.length < 1} /></>}
               </div>
               <div className="table-wrap manual-table">

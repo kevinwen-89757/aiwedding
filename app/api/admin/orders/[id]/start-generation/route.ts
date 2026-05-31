@@ -24,9 +24,13 @@ export async function POST(request: Request, context: Context) {
     provider: appConfig.generationProvider,
     hasApiKey: Boolean(process.env.APIMART_API_KEY),
     testLimit: runtimeConfig.generationTestLimit,
+    effectiveLimit: runtimeConfig.effectiveLimit,
+    planLength: runtimeConfig.planLength,
     resolution: runtimeConfig.apimartResolution,
     timeoutMs: runtimeConfig.apimartTimeoutMs,
-    plannedTaskCount: runtimeConfig.plannedTaskCount
+    plannedTaskCount: runtimeConfig.plannedTaskCount,
+    generationJobsCount: order.generation_jobs?.length ?? 0,
+    generatedAssetsCount: order.order_assets.filter((asset) => asset.kind === "generated").length
   });
   try {
     await generateOrderPreviews(id, { source: "admin" });
