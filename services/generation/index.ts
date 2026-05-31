@@ -71,7 +71,7 @@ export function formatGenerationPrompts(order: LocalOrder, uploadAsset?: OrderAs
     `已选风格：${selectedThemes}`,
     ""
   ];
-  for (const item of getOrderGenerationPlan(order)) {
+  for (const item of getEffectiveOrderGenerationPlan(order)) {
     lines.push(`【图 ${item.imageNumber}｜${generationTypeLabel(item.generationType)}｜${item.themeName}｜${item.promptName}】`);
     lines.push(item.rawPrompt);
     lines.push("");
@@ -82,11 +82,12 @@ export function formatGenerationPrompts(order: LocalOrder, uploadAsset?: OrderAs
 export function buildOrderInfo(order: LocalOrder) {
   return {
     orderId: order.id,
+    runtimeConfig: getGenerationRuntimeConfig(order),
     selectedThemes: getSelectedThemes(order.selected_theme_ids ?? []).map((theme) => ({
       themeId: theme.themeId,
       themeName: theme.themeName
     })),
-    generationPlan: getOrderGenerationPlan(order),
+    generationPlan: getEffectiveOrderGenerationPlan(order),
     createdAt: order.created_at
   };
 }
@@ -142,8 +143,21 @@ function applyGenerationTestLimit(plan: GenerationTaskItem[]) {
   return plan.slice(0, limit);
 }
 
+export function getEffectiveOrderGenerationPlan(order: Pick<LocalOrder, "selected_theme_ids">) {
+  return applyGenerationTestLimit(getOrderGenerationPlan(order));
+}
+
+export function getGenerationRuntimeConfig(order: Pick<LocalOrder, "selected_theme_ids">) {
+  return {
+    generationTestLimit: Number.isFinite(appConfig.generationTestLimit) ? appConfig.generationTestLimit : null,
+    apimartResolution: appConfig.apimartResolution,
+    apimartTimeoutMs: Number.isFinite(appConfig.apimartTimeoutMs) ? appConfig.apimartTimeoutMs : 300000,
+    plannedTaskCount: getEffectiveOrderGenerationPlan(order).length
+  };
+}
+
 function apiProgressNote(lines: string[]) {
-  return [`API 生成记录`, `模式：${appConfig.generationMode}`, `Provider：${appConfig.generationProvider ?? "未配置"}`, `模型：${appConfig.apimartModel}`, ...lines].join("\n");
+  return [`API 生成记录`, `模式：${appConfig.generationMode}`, `Provider：${appConfig.generationProvider ?? "未配置"}`, `模型：${appConfig.apimartModel}`, `resolution=${appConfig.apimartResolution}`, `timeoutMs=${Number.isFinite(appConfig.apimartTimeoutMs) ? appConfig.apimartTimeoutMs : 300000}`, `GENERATION_TEST_LIMIT=${Number.isFinite(appConfig.generationTestLimit) ? appConfig.generationTestLimit : "未设置"}`, ...lines].join("\n");
 }
 
 function appendApiProgressNoteText(current: string | null, lines: string[]) {
@@ -201,6 +215,7 @@ function recoverLegacyApiJobs(order: LocalOrder) {
       generation_type: planItem?.generationType ?? null,
       prompt_index: planItem ? imageNumber - 1 : null,
       raw_prompt: planItem?.rawPrompt ?? null,
+      resolution: appConfig.apimartResolution,
       created_at: now,
       updated_at: now
     };
@@ -229,7 +244,7 @@ export async function startApiGeneration(order: LocalOrder) {
 
   const brideReference = await readStoredFile(bride.original_path);
   const groomReference = await readStoredFile(groom.original_path);
-  const plan = applyGenerationTestLimit(getOrderGenerationPlan(order));
+  const plan = getEffectiveOrderGenerationPlan(order);
   if (!plan.length) throw new Error("没有可执行的生成计划。");
 
   const brideImageUrl = await apimartUploadImage({
@@ -248,7 +263,9 @@ export async function startApiGeneration(order: LocalOrder) {
     admin_note: apiProgressNote([
       `新娘正脸照已传到 APIMart：${brideImageUrl}`,
       `新郎正脸照已传到 APIMart：${groomImageUrl}`,
-      `本次生成数量：${plan.length}`
+      `本次生成数量：${plan.length}`,
+      `本次 resolution=${appConfig.apimartResolution}`,
+      `本次 timeoutMs=${Number.isFinite(appConfig.apimartTimeoutMs) ? appConfig.apimartTimeoutMs : 300000}`
     ])
   });
 
@@ -284,6 +301,7 @@ export async function startApiGeneration(order: LocalOrder) {
       generation_type: item.generationType,
       prompt_index: index,
       raw_prompt: item.rawPrompt,
+      resolution: appConfig.apimartResolution,
       created_at: now,
       updated_at: now
     };

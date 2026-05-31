@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { appConfig } from "@/lib/config";
 import { addLocalAsset, createLocalOrder, updateLocalUploadedPhotos } from "@/services/localStore";
 import { readStoredFile, saveUpload } from "@/services/storage";
 import { imageMetadataFromBuffer } from "@/services/watermark";
@@ -19,16 +20,31 @@ async function savePersonUpload(orderId: string, file: File, role: "bride" | "gr
   return photo;
 }
 
+function jsonError(error: string, detail: string, status = 500) {
+  return NextResponse.json({ error, detail }, { status });
+}
+
+function uploadConfigDetail() {
+  return [
+    `STORAGE_DRIVER=${appConfig.storageDriver}`,
+    `SUPABASE_URL configured: ${Boolean(appConfig.supabaseUrl)}`,
+    `SERVICE_ROLE configured: ${Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)}`,
+    `BUCKET configured: ${Boolean(appConfig.supabaseStorageBucket)}`
+  ].join("; ");
+}
+
 export async function POST(request: Request) {
   try {
     const formData = await request.formData();
+    const customerName = formData.get("customerName");
+    if (typeof customerName !== "string" || !customerName.trim()) return jsonError("请填写姓名，方便后台识别订单", "customerName is required", 400);
     const bridePhoto = formData.get("bridePhoto");
     const groomPhoto = formData.get("groomPhoto");
     if (!(bridePhoto instanceof File) || bridePhoto.size === 0) {
-      if (!(groomPhoto instanceof File) || groomPhoto.size === 0) return NextResponse.json({ error: "请分别上传新娘和新郎正脸照" }, { status: 400 });
-      return NextResponse.json({ error: "请上传新娘正脸照" }, { status: 400 });
+      if (!(groomPhoto instanceof File) || groomPhoto.size === 0) return jsonError("请分别上传新娘和新郎正脸照", "bridePhoto and groomPhoto are required", 400);
+      return jsonError("请上传新娘正脸照", "bridePhoto is required", 400);
     }
-    if (!(groomPhoto instanceof File) || groomPhoto.size === 0) return NextResponse.json({ error: "请上传新郎正脸照" }, { status: 400 });
+    if (!(groomPhoto instanceof File) || groomPhoto.size === 0) return jsonError("请上传新郎正脸照", "groomPhoto is required", 400);
     const order = await createLocalOrder({ customerName: formData.get("customerName"), customerPhone: formData.get("customerPhone"), customerEmail: formData.get("customerEmail") });
     const bride = await savePersonUpload(order.id, bridePhoto, "bride", 0);
     const groom = await savePersonUpload(order.id, groomPhoto, "groom", 1);
@@ -36,7 +52,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ orderId: order.id });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Upload failed";
-    console.error("POST /api/orders failed:", error);
-    return NextResponse.json({ error: message }, { status: 500 });
+    console.error("POST /api/orders failed:", message);
+    return jsonError(message || "创建订单失败，请稍后重试。", uploadConfigDetail(), 500);
   }
 }

@@ -13,7 +13,7 @@ export function AdminOrderActions({ orderId, hasGenerated, status, hasThemes, ad
   const isStaleGenerating = status === "generating" && !hasGenerated && updatedAt ? Date.now() - new Date(updatedAt).getTime() > 10 * 60 * 1000 : false;
   const generationButtonText = (() => {
     if (busy === "regenerate" || busy === "start") return "重新生成中...";
-    if (hasGenerated) return "重新生成20张预览";
+    if (hasGenerated) return "重新生成预览";
     if (status === "ready_to_generate") return "开始生成";
     if (status === "generation_failed" || status === "failed") return "重新生成";
     if (status === "generating" && (isStaleGenerating || hasActiveTask)) return "强制重试";

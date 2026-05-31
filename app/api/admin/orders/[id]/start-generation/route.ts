@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { adminUnauthorized } from "@/lib/admin";
 import { appConfig } from "@/lib/config";
 import { getLocalOrder } from "@/services/localStore";
-import { generateOrderPreviews, getReferenceUploadAssets } from "@/services/generation";
+import { generateOrderPreviews, getGenerationRuntimeConfig, getReferenceUploadAssets } from "@/services/generation";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -13,6 +13,7 @@ export async function POST(request: Request, context: Context) {
   const order = await getLocalOrder(id);
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   const references = getReferenceUploadAssets(order);
+  const runtimeConfig = getGenerationRuntimeConfig(order);
   console.log("[start-generation] api precheck", {
     orderId: id,
     status: order.status,
@@ -22,7 +23,10 @@ export async function POST(request: Request, context: Context) {
     generationMode: appConfig.generationMode,
     provider: appConfig.generationProvider,
     hasApiKey: Boolean(process.env.APIMART_API_KEY),
-    testLimit: process.env.GENERATION_TEST_LIMIT
+    testLimit: runtimeConfig.generationTestLimit,
+    resolution: runtimeConfig.apimartResolution,
+    timeoutMs: runtimeConfig.apimartTimeoutMs,
+    plannedTaskCount: runtimeConfig.plannedTaskCount
   });
   try {
     await generateOrderPreviews(id, { source: "admin" });

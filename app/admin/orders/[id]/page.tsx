@@ -9,7 +9,7 @@ import { appConfig } from "@/lib/config";
 import { formatCny } from "@/lib/money";
 import { getProgressIndex } from "@/lib/status";
 import type { OrderAsset } from "@/lib/types";
-import { formatGenerationPrompts, generationTypeLabel, getOrderGenerationPlan, getReferenceUploadAssets } from "@/services/generation";
+import { formatGenerationPrompts, generationTypeLabel, getEffectiveOrderGenerationPlan, getGenerationRuntimeConfig, getReferenceUploadAssets } from "@/services/generation";
 import { getLocalOrder } from "@/services/localStore";
 import { getSelectedThemes } from "@/services/prompts";
 
@@ -44,7 +44,8 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
   const activeGenerationJobs = generationJobs.filter((job) => job.status !== "completed" && job.status !== "failed");
   const selectedThemes = getSelectedThemes(order.selected_theme_ids ?? []);
   const themeText = order.selected_theme_ids?.length ? selectedThemes.map((theme) => theme.themeName).join("、") : "未选择";
-  const generationPlan = order.selected_theme_ids?.length ? getOrderGenerationPlan(order) : [];
+  const generationPlan = order.selected_theme_ids?.length ? getEffectiveOrderGenerationPlan(order) : [];
+  const runtimeConfig = getGenerationRuntimeConfig(order);
   const promptText = formatGenerationPrompts(order, upload);
   const progress = getProgressIndex(order.status);
   const steps = ["上传", "支付9.9", "选主题", "生成", "选片", "付款", "下载"];
@@ -104,7 +105,7 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
             <div className="manual-head">
               <div>
                 <h2>{isApiMode ? "API 生成任务" : "人工生成任务包"}</h2>
-                <p className="muted">当前模式：{appConfig.generationMode}。Provider：{appConfig.generationProvider ?? "未配置"}。模型：{appConfig.apimartModel}。测试限制：{appConfig.generationTestLimit ?? "未设置"}。normal 为常规预览图，共 10 张；sweet_spot 为内部甜点首图，用户端不显示这个概念。</p>
+                <p className="muted">当前模式：{appConfig.generationMode}。Provider：{appConfig.generationProvider ?? "未配置"}。模型：{appConfig.apimartModel}。当前生成数量：{runtimeConfig.plannedTaskCount}。当前画质：{runtimeConfig.apimartResolution}。timeoutMs：{runtimeConfig.apimartTimeoutMs}。GENERATION_TEST_LIMIT 实际值：{runtimeConfig.generationTestLimit ?? "未设置"}。</p>
               </div>
               <div className="actions">
                 {upload ? <a className="button secondary" href={`/api/download/${upload.id}`} download>下载用户上传原图</a> : null}
@@ -120,7 +121,7 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
                 </div>
                 <h3>已选风格</h3>
                 <p className="muted">{themeText}</p>
-                {generationJobs.length > 0 ? <div className="generation-job-list"><h3>APIMart 任务状态</h3>{generationJobs.map((job) => <p key={job.task_id} className="muted">图 {job.image_number}：{job.status} · 查询 {job.poll_count} 次 · task_id: {job.task_id}{job.error ? ` · ${job.error}` : ""}</p>)}</div> : null}
+                {generationJobs.length > 0 ? <div className="generation-job-list"><h3>APIMart 任务状态</h3>{generationJobs.map((job) => <p key={job.task_id} className="muted">图 {job.image_number}：{job.status} · resolution={job.resolution ?? appConfig.apimartResolution} · 查询 {job.poll_count} 次 · task_id: {job.task_id}{job.error ? ` · ${job.error}` : ""}</p>)}</div> : null}
                 {isApiMode ? null : <><ManualGeneratedUploadForm orderId={order.id} planCount={generationPlan.length} generatedCount={generated.length} /><CompleteManualGenerationButton orderId={order.id} disabled={generated.length < 1} /></>}
               </div>
               <div className="table-wrap manual-table">

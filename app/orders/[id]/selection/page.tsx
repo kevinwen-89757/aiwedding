@@ -15,10 +15,10 @@ export default async function SelectionPage({ params }: PageProps) {
       <section className="page-head">
         <p className="eyebrow">Selection</p>
         <h1>先看高清预览，再解锁喜欢的原图。</h1>
-        <p className="lead">预览高清，解锁 4K。当前展示为高清水印预览图，选中喜欢的照片后，可解锁 4K 无水印原图保存。</p>
+        <p className="lead">预览高清，选中喜欢的照片后，可解锁无水印原图保存。</p>
         <div className="selection-value-tags">
           <span>高清水印预览</span>
-          <span>解锁 4K 原图</span>
+          <span>解锁无水印原图</span>
           <span>无水印保存</span>
         </div>
       </section>

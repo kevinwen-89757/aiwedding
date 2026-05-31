@@ -16,12 +16,21 @@ export function absoluteStoragePath(relativePath: string) {
 }
 
 async function uploadSupabaseObject(relativePath: string, buffer: Buffer, mimeType: string) {
+  if (!appConfig.supabaseUrl) throw new Error("SUPABASE_URL 缺失，无法上传到 Supabase Storage。");
+  if (!process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("SUPABASE_SERVICE_ROLE_KEY 缺失，无法上传到 Supabase Storage。");
+  if (!appConfig.supabaseStorageBucket) throw new Error("SUPABASE_STORAGE_BUCKET 缺失，无法上传到 Supabase Storage。");
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.storage.from(appConfig.supabaseStorageBucket).upload(relativePath, buffer, {
     contentType: mimeType,
     upsert: true
   });
-  if (error) throw new Error(`Supabase Storage upload failed: ${error.message}`);
+  if (error) {
+    const message = error.message.toLowerCase();
+    if (message.includes("bucket") && message.includes("not found")) throw new Error(`Supabase Storage bucket 不存在：${appConfig.supabaseStorageBucket}`);
+    if (message.includes("permission") || message.includes("policy") || message.includes("unauthorized") || message.includes("jwt")) throw new Error(`Supabase Storage 权限问题：${error.message}`);
+    if (message.includes("payload") || message.includes("too large") || message.includes("size")) throw new Error(`Supabase Storage 文件过大：${error.message}`);
+    throw new Error(`Supabase Storage 上传失败：${error.message}`);
+  }
 }
 
 export async function saveUpload(file: File, orderId: string, role?: "bride" | "groom"): Promise<StoredFile> {
@@ -105,9 +114,10 @@ export async function savePreviewImageBuffer(buffer: Buffer, orderId: string, im
 
 export async function readStoredFile(relativePath: string) {
   if (isSupabaseStorage()) {
+    if (!appConfig.supabaseStorageBucket) throw new Error("SUPABASE_STORAGE_BUCKET 缺失，无法读取 Supabase Storage。");
     const supabase = getSupabaseAdmin();
     const { data, error } = await supabase.storage.from(appConfig.supabaseStorageBucket).download(relativePath);
-    if (error) throw new Error(`Supabase Storage download failed: ${error.message}`);
+    if (error) throw new Error(`Supabase Storage 读取失败：${error.message}`);
     return Buffer.from(await data.arrayBuffer());
   }
   return readFile(absoluteStoragePath(relativePath));

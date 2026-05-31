@@ -72,6 +72,7 @@ export type GenerationJob = {
   generation_type: "normal" | "sweet_spot" | "manual_extra" | null;
   prompt_index: number | null;
   raw_prompt: string | null;
+  resolution?: string | null;
   created_at: string;
   updated_at: string;
 };

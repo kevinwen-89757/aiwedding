@@ -28,7 +28,7 @@ export function OrderStatusProgress({ orderId, status, progress, stageText, help
     if (!canAutoRefresh) return;
     const timer = window.setInterval(() => {
       void refreshProgress();
-    }, 12000);
+    }, 20000);
     return () => window.clearInterval(timer);
   }, [canAutoRefresh, refreshProgress]);
 

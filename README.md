@@ -92,8 +92,8 @@ APIMART_API_KEY=只在 Netlify 环境变量里配置
 APIMART_BASE_URL=https://api.apimart.ai
 APIMART_MODEL=gemini-3-pro-image-preview
 APIMART_RESOLUTION=1K
-APIMART_TIMEOUT_MS=180000
-GENERATION_TEST_LIMIT=1
+APIMART_TIMEOUT_MS=300000
+GENERATION_TEST_LIMIT=5
 ADMIN_TOKEN=请换成一段长随机复杂字符串
 STORAGE_DRIVER=supabase
 SUPABASE_URL=你的 Supabase Project URL
@@ -110,3 +110,5 @@ SUPABASE_STORAGE_BUCKET=ai-wedding-assets
 - 上线前在 Supabase SQL Editor 执行 `supabase/schema.sql`，创建 `orders` 表和私有 Storage bucket `ai-wedding-assets`。
 - `LOCAL_STORAGE_ROOT` 只用于本地开发；Netlify 正式环境不要依赖 `/tmp` 保存订单或图片。
 - `STORAGE_DRIVER=supabase` 时，订单保存到 Supabase Database，上传图、生成原图和水印预览图保存到 Supabase Storage，并继续通过服务端 `/api/download` 读取。
+- 当前测试/小流量验证阶段使用 `GENERATION_TEST_LIMIT=5`、`APIMART_RESOLUTION=1K`、`APIMART_TIMEOUT_MS=300000`。
+- 后续正式压力测试阶段可在 Netlify 环境变量切换为 `GENERATION_TEST_LIMIT=20`、`APIMART_RESOLUTION=4K`、`APIMART_TIMEOUT_MS=900000`，代码不需要写死这些值。

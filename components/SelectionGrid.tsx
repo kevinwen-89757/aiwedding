@@ -105,12 +105,12 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
         </div>
       ))}
     </div>
-    <div className="sticky-bar"><strong>{selected.size > 0 ? `已选 ${selected.size} 张` : "请选择喜欢的照片"}</strong><div className="actions"><strong>解锁 4K 原图 {formatCny(total)}</strong><button onClick={submit} disabled={saving || selected.size === 0}><LockKeyhole size={18} />{saving ? "保存中..." : selected.size > 0 ? `确认解锁 ${selected.size} 张 · ${formatCny(total)}` : "先选择想解锁的照片"}</button></div></div>
+    <div className="sticky-bar"><strong>{selected.size > 0 ? `已选 ${selected.size} 张` : "请选择喜欢的照片"}</strong><div className="actions"><strong>解锁无水印原图 {formatCny(total)}</strong><button onClick={submit} disabled={saving || selected.size === 0}><LockKeyhole size={18} />{saving ? "保存中..." : selected.size > 0 ? `确认解锁 ${selected.size} 张 · ${formatCny(total)}` : "先选择想解锁的照片"}</button></div></div>
     {mounted && previewAsset ? createPortal((
       <div className="selection-lightbox" role="dialog" aria-modal="true" aria-label={`第 ${previewAsset.sort_order} 张带水印预览图`} onClick={() => setPreviewAsset(null)}>
         <button className="selection-lightbox-close" type="button" onClick={() => setPreviewAsset(null)} aria-label="关闭预览"><X size={22} /></button>
         <div className="selection-lightbox-content" onClick={(event) => event.stopPropagation()}>
-          <p>#{previewAsset.sort_order} 高清水印预览 · 解锁后即可下载 4K 无水印原图</p>
+          <p>#{previewAsset.sort_order} 高清水印预览 · 解锁后即可下载无水印原图</p>
           <img src={previewUrl(previewAsset)} alt={`带水印大图预览 ${previewAsset.sort_order}`} />
         </div>
       </div>

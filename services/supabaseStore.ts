@@ -39,11 +39,11 @@ export async function saveSupabaseOrder(order: LocalOrder) {
     created_at: order.created_at,
     updated_at: order.updated_at
   }, { onConflict: "id" });
-  if (error) throw new Error(`Supabase order write failed: ${error.message}`);
+  if (error) throw new Error(`Supabase orders 写入失败：${error.message}`);
 }
 
 export async function assertSupabaseStoreReady() {
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("orders").select("id").limit(1);
-  if (error) throw new Error(`Supabase orders table is not ready: ${error.message}`);
+  if (error) throw new Error(`Supabase orders 表不可用：${error.message}`);
 }

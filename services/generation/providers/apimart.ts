@@ -214,7 +214,7 @@ function wait(ms: number) {
 }
 
 export async function apimartPollTask(taskId: string): Promise<ApimartTaskResult> {
-  const timeoutMs = Number.isFinite(appConfig.apimartTimeoutMs) ? appConfig.apimartTimeoutMs : 180000;
+  const timeoutMs = Number.isFinite(appConfig.apimartTimeoutMs) ? appConfig.apimartTimeoutMs : 300000;
   const startedAt = Date.now();
   let latest: unknown = null;
   while (Date.now() - startedAt <= timeoutMs) {
