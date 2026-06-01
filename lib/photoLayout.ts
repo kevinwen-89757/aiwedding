@@ -22,22 +22,28 @@ export function buildPhotoLayoutRows(assets: OrderAsset[]) {
   let index = 0;
   while (index < assets.length) {
     const current = assets[index];
+    const currentKind = ratioKind(current);
+
+    // 16:9 横图始终独占一行
+    if (currentKind === "landscape") {
+      rows.push({ id: current.id, kind: "single-landscape", assets: [current] });
+      index += 1;
+      continue;
+    }
+
     const next = assets[index + 1];
     const third = assets[index + 2];
-    const currentKind = ratioKind(current);
     const nextKind = next ? ratioKind(next) : null;
     const thirdKind = third ? ratioKind(third) : null;
-    if (next && currentKind !== nextKind) {
-      rows.push({ id: `${current.id}-${next.id}`, kind: "mixed", assets: [current, next] });
-      index += 2;
-    } else if (currentKind === "portrait" && nextKind === "portrait" && thirdKind === "portrait") {
-      rows.push({ id: `${current.id}-${next.id}-${third.id}`, kind: "portrait-triple", assets: [current, next, third] });
+
+    if (currentKind === "portrait" && nextKind === "portrait" && thirdKind === "portrait") {
+      rows.push({ id: `${current.id}-${next!.id}-${third!.id}`, kind: "portrait-triple", assets: [current, next!, third!] });
       index += 3;
     } else if (currentKind === "portrait" && nextKind === "portrait") {
-      rows.push({ id: `${current.id}-${next.id}`, kind: "portrait-pair", assets: [current, next] });
+      rows.push({ id: `${current.id}-${next!.id}`, kind: "portrait-pair", assets: [current, next!] });
       index += 2;
     } else {
-      rows.push({ id: current.id, kind: currentKind === "landscape" ? "single-landscape" : "single-portrait", assets: [current] });
+      rows.push({ id: current.id, kind: "single-portrait", assets: [current] });
       index += 1;
     }
   }
