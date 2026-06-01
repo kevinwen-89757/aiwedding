@@ -1,29 +1,33 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { AdminOrderActions } from "@/components/AdminOrderActions";
 import { CopyOrderButton } from "@/components/CopyOrderButton";
-import { CompleteManualGenerationButton, CopyAllPromptsButton, ManualGeneratedUploadForm } from "@/components/ManualGenerationTools";
 import { StatusBadge } from "@/components/StatusBadge";
 import { isAdminToken } from "@/lib/admin";
 import { appConfig } from "@/lib/config";
 import { formatCny } from "@/lib/money";
 import { getProgressIndex } from "@/lib/status";
 import type { OrderAsset } from "@/lib/types";
-import { formatGenerationPrompts, generationTypeLabel, getEffectiveOrderGenerationPlan, getGenerationRuntimeConfig, getReferenceUploadAssets } from "@/services/generation";
+import {
+  formatGenerationPrompts,
+  generationTypeLabel,
+  getEffectiveOrderGenerationPlan,
+  getGenerationRuntimeConfig,
+  getReferenceUploadAssets,
+} from "@/services/generation";
 import { getLocalOrder } from "@/services/localStore";
 import { getSelectedThemes } from "@/services/prompts";
 
 type PageProps = { params: Promise<{ id: string }>; searchParams: Promise<{ token?: string }> };
 
-function generationTypeText(type: OrderAsset["generation_type"]) {
-  return generationTypeLabel(type);
-}
-
 function UploadReference({ title, asset }: { title: string; asset: OrderAsset | null }) {
   return (
     <div>
       <h3>{title}</h3>
-      {asset ? <img className="upload-preview" src={`/api/download/${asset.id}`} alt={title} /> : <p className="muted">未上传</p>}
+      {asset ? (
+        <img className="upload-preview" src={`/api/download/${asset.id}`} alt={title} />
+      ) : (
+        <p className="muted">未上传</p>
+      )}
     </div>
   );
 }
@@ -42,15 +46,13 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
   const generated = order.order_assets.filter((asset: OrderAsset) => asset.kind === "generated");
   const generationJobs = order.generation_jobs ?? [];
   const generatedAssetsCount = generated.length;
-  const hasGenerationTaskId = generationJobs.some((job) => Boolean(job.task_id));
   const activeGenerationJobs = generationJobs.filter((job) => job.status !== "completed" && job.status !== "failed");
   const selectedThemes = getSelectedThemes(order.selected_theme_ids ?? []);
   const themeText = order.selected_theme_ids?.length ? selectedThemes.map((theme) => theme.themeName).join("、") : "未选择";
   const generationPlan = order.selected_theme_ids?.length ? getEffectiveOrderGenerationPlan(order) : [];
   const runtimeConfig = getGenerationRuntimeConfig(order);
-  const promptText = formatGenerationPrompts(order, upload);
   const progress = getProgressIndex(order.status);
-  const steps = ["上传", "支付9.9", "选主题", "生成", "选片", "付款", "下载"];
+  const steps = ["上传", "支付", "选主题", "生成", "选片", "付款", "下载"];
   const isApiMode = appConfig.generationMode === "api";
 
   return (
@@ -65,12 +67,14 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
           <Link className="button secondary" href="/admin/orders">返回列表</Link>
         </div>
         <div className="progress progress-compact">
-          {steps.map((step, index) => <span className={`progress-step ${index <= progress ? "done" : ""} ${index === progress ? "active" : ""}`} key={step}>{step}</span>)}
+          {steps.map((step, index) => (
+            <span className={`progress-step ${index <= progress ? "done" : ""} ${index === progress ? "active" : ""}`} key={step}>
+              {step}
+            </span>
+          ))}
         </div>
         <div className="actions">
-          <Link className="button secondary" href={`/orders/${order.id}/status`}>打开用户状态页</Link>
-          <Link className="button secondary" href={`/orders/${order.id}/select`}>打开用户选片页</Link>
-          <Link className="button secondary" href={`/orders/${order.id}/download`}>打开下载页</Link>
+          <Link className="button secondary" href={`/orders/${id}/status`}>用户状态页</Link>
           <CopyOrderButton orderId={order.id} />
         </div>
       </section>
@@ -83,11 +87,14 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
           <p>手机：{order.customer_phone || "未填写"}</p>
           <p>邮箱：{order.customer_email || "未填写"}</p>
           <p>已选主题：{themeText}</p>
-          <p>新娘照：{references.bride ? "已上传" : "未上传"}</p>
-          <p>新郎照：{references.groom ? "已上传" : "未上传"}</p>
           <p>选片数量：{order.selected_count} 张</p>
           <p>选片金额：{formatCny(order.selection_amount_cents)}</p>
-          {order.admin_note ? <details><summary>生成/管理记录</summary><pre>{order.admin_note}</pre></details> : null}
+          {order.admin_note ? (
+            <details>
+              <summary>生成/管理记录</summary>
+              <pre>{order.admin_note}</pre>
+            </details>
+          ) : null}
         </div>
 
         <div className="card">
@@ -98,74 +105,42 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
           </div>
         </div>
 
-        <AdminOrderActions orderId={order.id} hasGenerated={generated.length > 0} status={order.status} hasThemes={Boolean(order.selected_theme_ids?.length)} adminNote={order.admin_note} updatedAt={order.updated_at} hasActiveGenerationTasks={activeGenerationJobs.length > 0} />
+        <div className="card">
+          <h2>生成状态</h2>
+          <p>模式：{isApiMode ? "API 自动" : "人工"}</p>
+          <p>计划：{generationPlan.length} 张</p>
+          <p>已完成：{generatedAssetsCount} 张</p>
+          <p>进行中：{activeGenerationJobs.length} 张</p>
+          {generationJobs.length > 0 && (
+            <details>
+              <summary>APIMart 任务详情</summary>
+              {generationJobs.map((job) => (
+                <p key={job.task_id || job.image_number} className="muted">
+                  图 {job.image_number}：{job.status} · 查询 {job.poll_count} 次{job.error ? ` · ${job.error}` : ""}
+                </p>
+              ))}
+            </details>
+          )}
+        </div>
       </section>
-
-      {generationPlan.length > 0 ? (
-        <section className="section manual-task">
-          <div className="card">
-            <div className="manual-head">
-              <div>
-                <h2>{isApiMode ? "API 生成任务" : "人工生成任务包"}</h2>
-                <p className="muted">当前模式：{appConfig.generationMode}。Provider：{appConfig.generationProvider ?? "未配置"}。模型：{appConfig.apimartModel}。当前生成数量：{runtimeConfig.plannedTaskCount}。当前画质：{runtimeConfig.apimartResolution}。timeoutMs：{runtimeConfig.apimartTimeoutMs}。GENERATION_TEST_LIMIT 实际值：{runtimeConfig.generationTestLimit ?? "未设置"}。</p>
-                <p className="muted">诊断：effectiveLimit={runtimeConfig.effectiveLimit ?? "未设置"}。plan.length={generationPlan.length}。generation_jobs.length={generationJobs.length}。generated_assets.length={generatedAssetsCount}。resolution={runtimeConfig.apimartResolution}。timeoutMs={runtimeConfig.apimartTimeoutMs}。</p>
-              </div>
-              <div className="actions">
-                {upload ? <a className="button secondary" href={`/api/download/${upload.id}`} download>下载用户上传原图</a> : null}
-                <CopyAllPromptsButton text={promptText} />
-                {isApiMode ? <details><summary className="button secondary">备用任务包</summary><a className="button secondary" href={`/api/admin/orders/${order.id}/task-prompts`}>下载任务包</a></details> : <a className="button secondary" href={`/api/admin/orders/${order.id}/task-prompts`}>下载任务包</a>}
-              </div>
-            </div>
-            <div className="manual-layout">
-              <div>
-                <div className="upload-reference-grid">
-                  <UploadReference title="新娘正脸照" asset={references.bride} />
-                  <UploadReference title="新郎正脸照" asset={references.groom} />
-                </div>
-                <h3>已选风格</h3>
-                <p className="muted">{themeText}</p>
-                {order.status === "generating" || generationJobs.length > 0 ? <div className="generation-job-list"><h3>APIMart 任务状态</h3><p className="muted">effectiveLimit={runtimeConfig.effectiveLimit ?? "未设置"} · plan.length={generationPlan.length} · generation_jobs.length={generationJobs.length} · generated_assets.length={generatedAssetsCount} · resolution={runtimeConfig.apimartResolution} · timeoutMs={runtimeConfig.apimartTimeoutMs}</p>{generationJobs.length < generationPlan.length ? <p className="muted">警告：generation_jobs 数量少于计划任务数。</p> : null}{generationJobs.length === 0 ? <p className="muted">等待创建 APIMart 任务 / 排队中</p> : null}{hasGenerationTaskId ? <p className="muted">已进入 APIMart 队列，可点击“查询生成结果”。</p> : null}{generationJobs.map((job) => <p key={job.task_id} className="muted">图 {job.image_number}：{job.status} · resolution={job.resolution ?? appConfig.apimartResolution} · 查询 {job.poll_count} 次 · task_id: {job.task_id}{job.error ? ` · ${job.error}` : ""}</p>)}</div> : null}
-                {isApiMode ? null : <><ManualGeneratedUploadForm orderId={order.id} planCount={generationPlan.length} generatedCount={generated.length} /><CompleteManualGenerationButton orderId={order.id} disabled={generated.length < 1} /></>}
-              </div>
-              <div className="table-wrap manual-table">
-                <table className="table">
-                  <thead><tr><th>编号</th><th>类型</th><th>主题</th><th>Prompt</th><th>画幅</th><th>内容</th></tr></thead>
-                  <tbody>
-                    {generationPlan.map((item) => (
-                      <tr key={item.imageNumber}>
-                        <td>图 {item.imageNumber}</td>
-                        <td>{generationTypeLabel(item.generationType)}</td>
-                        <td>{item.themeName}</td>
-                        <td>{item.promptName}</td>
-                        <td>{item.aspectRatio}</td>
-                        <td><details><summary>查看 prompt</summary><pre>{item.rawPrompt}</pre></details></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        </section>
-      ) : null}
 
       <section className="section">
         <h2>生成结果</h2>
-        {generated.length === 0 ? <div className="card">暂无生成图</div> : (
+        {generated.length === 0 ? (
+          <div className="card">暂无生成图</div>
+        ) : (
           <div className="photo-grid">
             {generated.map((asset: OrderAsset) => (
               <article className="photo-tile" key={asset.id}>
                 <img src={`/api/download/${asset.id}?preview=1`} alt={`生成图 ${asset.sort_order}`} />
-                <div className="tile-footer"><span>#{asset.sort_order}</span><span>{asset.is_selected ? "已选" : "未选"}</span></div>
+                <div className="tile-footer">
+                  <span>#{asset.sort_order}</span>
+                  <span>{asset.is_selected ? "已选" : "未选"}</span>
+                </div>
                 <div className="asset-meta">
                   <div>{asset.theme_name ?? "未记录主题"}</div>
                   <div>{asset.prompt_name ?? "未记录 prompt"}</div>
-                  <div>{asset.aspect_ratio ?? "未记录比例"}</div>
-                  <div>{generationTypeText(asset.generation_type)}</div>
-                  {asset.generation_provider ? <div>{asset.generation_provider} / {asset.generation_model ?? "未记录模型"}</div> : null}
-                  {asset.generation_task_id ? <div>task_id: {asset.generation_task_id}</div> : null}
-                  {asset.generation_status ? <div>状态: {asset.generation_status}</div> : null}
-                  {asset.generation_error ? <div>错误: {asset.generation_error}</div> : null}
+                  <div>{generationTypeLabel(asset.generation_type)}</div>
                 </div>
               </article>
             ))}
