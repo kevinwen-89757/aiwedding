@@ -15,6 +15,11 @@ export default function WeChatContact() {
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
+  function toggle(e: React.KeyboardEvent | React.MouseEvent) {
+    if ("key" in e && e.key !== "Enter" && e.key !== " ") return;
+    setOpen((v) => !v);
+  }
+
   function copy() {
     navigator.clipboard.writeText("CyberSunset_K");
     setCopied(true);
@@ -23,9 +28,15 @@ export default function WeChatContact() {
 
   return (
     <div ref={ref} className="wechat-contact">
-      <button className="wechat-btn" onClick={() => setOpen(!open)}>
+      <span
+        className="wechat-btn"
+        role="button"
+        tabIndex={0}
+        onClick={toggle}
+        onKeyDown={toggle}
+      >
         客服微信
-      </button>
+      </span>
       {open && (
         <div className="wechat-popup">
           <div className="wechat-popup-inner">
