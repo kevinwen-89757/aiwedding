@@ -19,6 +19,16 @@ export function AdminConfirmButtons({ orderId, status }: { orderId: string; stat
     alert("确认失败，请重试");
   }
 
+  async function startGeneration() {
+    if (!confirm("确认开始 AI 生成？将调用 APIMart 接口生成预览图。")) return;
+    setBusy("generate");
+    const res = await fetch(`/api/admin/orders/${orderId}/start-generation`, { method: "POST" });
+    setBusy(null);
+    if (res.ok) { router.refresh(); return; }
+    const err = await res.json().catch(() => ({}));
+    alert("生成启动失败：" + (err.error || "未知错误"));
+  }
+
   async function confirmSelection() {
     setBusy("selection");
     const res = await fetch(`/api/admin/orders/${orderId}`, {
@@ -32,15 +42,21 @@ export function AdminConfirmButtons({ orderId, status }: { orderId: string; stat
   }
 
   const needsDepositConfirm = status === "awaiting_deposit" || status === "pending_payment";
+  const needsGenerate = status === "ready_to_generate";
   const needsSelectionConfirm = status === "pending_final_payment" || status === "selection_payment_pending";
 
-  if (!needsDepositConfirm && !needsSelectionConfirm) return null;
+  if (!needsDepositConfirm && !needsGenerate && !needsSelectionConfirm) return null;
 
   return (
     <div className="admin-confirm-actions">
       {needsDepositConfirm && (
         <button className="button" onClick={confirmDeposit} disabled={busy !== null}>
           {busy === "deposit" ? "确认中..." : "确认试看费已到账"}
+        </button>
+      )}
+      {needsGenerate && (
+        <button className="button primary" onClick={startGeneration} disabled={busy !== null}>
+          {busy === "generate" ? "启动中..." : "开始 AI 生成"}
         </button>
       )}
       {needsSelectionConfirm && (
