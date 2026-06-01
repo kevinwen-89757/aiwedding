@@ -362,7 +362,7 @@ main {
 }
 
 .selection-row-mixed {
-  grid-template-columns: minmax(0, 16fr) minmax(0, 6.75fr);
+  grid-template-columns: 1fr 1fr;
   gap: clamp(32px, 3vw, 56px);
 }
 
