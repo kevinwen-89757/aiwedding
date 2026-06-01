@@ -1,14 +1,13 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
+import { AdminConfirmButtons } from "@/components/AdminConfirmButtons";
 import { CopyOrderButton } from "@/components/CopyOrderButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { isAdminToken } from "@/lib/admin";
-import { appConfig } from "@/lib/config";
 import { formatCny } from "@/lib/money";
 import { getProgressIndex } from "@/lib/status";
 import type { OrderAsset } from "@/lib/types";
 import {
-  formatGenerationPrompts,
   generationTypeLabel,
   getEffectiveOrderGenerationPlan,
   getGenerationRuntimeConfig,
@@ -42,7 +41,6 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
   if (!order) return <main className="shell section">订单不存在</main>;
 
   const references = getReferenceUploadAssets(order);
-  const upload = references.primary;
   const generated = order.order_assets.filter((asset: OrderAsset) => asset.kind === "generated");
   const generationJobs = order.generation_jobs ?? [];
   const generatedAssetsCount = generated.length;
@@ -50,10 +48,8 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
   const selectedThemes = getSelectedThemes(order.selected_theme_ids ?? []);
   const themeText = order.selected_theme_ids?.length ? selectedThemes.map((theme) => theme.themeName).join("、") : "未选择";
   const generationPlan = order.selected_theme_ids?.length ? getEffectiveOrderGenerationPlan(order) : [];
-  const runtimeConfig = getGenerationRuntimeConfig(order);
   const progress = getProgressIndex(order.status);
-  const steps = ["上传", "支付", "选主题", "生成", "选片", "付款", "下载"];
-  const isApiMode = appConfig.generationMode === "api";
+  const steps = ["上传", "选主题", "支付", "生成", "选片", "付款", "下载"];
 
   return (
     <main className="shell">
@@ -95,6 +91,7 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
               <pre>{order.admin_note}</pre>
             </details>
           ) : null}
+          <AdminConfirmButtons orderId={order.id} status={order.status} />
         </div>
 
         <div className="card">
@@ -107,7 +104,7 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
 
         <div className="card">
           <h2>生成状态</h2>
-          <p>模式：{isApiMode ? "API 自动" : "人工"}</p>
+          <p>模式：API 自动 / 人工</p>
           <p>计划：{generationPlan.length} 张</p>
           <p>已完成：{generatedAssetsCount} 张</p>
           <p>进行中：{activeGenerationJobs.length} 张</p>

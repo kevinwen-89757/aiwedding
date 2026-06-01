@@ -39,8 +39,8 @@ export function getStatusText(status: OrderStatus) {
 
 export function getProgressIndex(status: OrderStatus) {
   const normalized = normalizeStatus(status);
-  if (normalized === "pending_payment") return 1;
-  if (normalized === "pending_theme") return 2;
+  if (normalized === "pending_theme") return 1;
+  if (normalized === "pending_payment") return 2;
   if (normalized === "generating") return 3;
   if (normalized === "pending_selection") return 4;
   if (normalized === "pending_final_payment" || normalized === "paid") return 5;

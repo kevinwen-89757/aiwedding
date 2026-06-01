@@ -12,17 +12,24 @@ export default async function PayPage({ params, searchParams }: PageProps) {
   if (!order) return <main className="shell section">订单不存在</main>;
   const amount = paymentKind === "deposit" ? order.deposit_amount_cents : order.selection_amount_cents;
   const orderShort = id.slice(0, 8);
+  const isDeposit = paymentKind === "deposit";
 
   return (
     <main className="narrow section">
       <div className="card pay-card">
         <p className="eyebrow">Payment</p>
-        <h1>{paymentKind === "deposit" ? "支付试看费用" : "支付选片费用"}</h1>
+        <h1>{isDeposit ? "支付试看费用" : "支付选片费用"}</h1>
         <p className="amount">应付金额：{formatCny(amount)}</p>
+
+        {isDeposit && (
+          <p className="pay-deduct-hint">
+            试看费可在确认正片时全额抵扣
+          </p>
+        )}
 
         <div className="pay-qr-wrap">
           <img
-            src={paymentKind === "deposit" ? "/wxpay-deposit.jpg" : "/wxpay-selection.jpg"}
+            src={isDeposit ? "/wxpay-deposit.jpg" : "/wxpay-selection.jpg"}
             alt="微信支付二维码"
             className="pay-qr-img"
           />

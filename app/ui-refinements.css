@@ -1828,6 +1828,14 @@ main {
 }
 
 /* 支付页二维码 */
+.pay-deduct-hint {
+  margin: 0 0 4px;
+  font-size: 14px;
+  color: #07C160;
+  font-weight: 700;
+  text-align: center;
+}
+
 .pay-qr-wrap {
   display: flex;
   flex-direction: column;
@@ -1861,6 +1869,18 @@ main {
   font-weight: 800;
   font-family: "SF Mono", "Menlo", monospace;
   letter-spacing: 0.04em;
+}
+
+.admin-confirm-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+}
+
+.admin-confirm-actions button {
+  flex: 1;
 }
 
 .manual-task {

@@ -104,7 +104,7 @@ export function UploadForm() {
         setError(errorText);
         return;
       }
-      router.push(`/orders/${payload.orderId}/pay?kind=deposit`);
+      router.push(`/orders/${payload.orderId}/themes`);
     } catch (err) { setSubmitting(false); setError(err instanceof Error ? err.message : "上传失败，请查看终端日志"); }
   }
   const hasName = Boolean(customerName.trim());

@@ -110,7 +110,7 @@ export async function getLocalOrder(orderId: string) {
 }
 export async function createLocalOrder(input: { customerName: FormDataEntryValue | null; customerPhone: FormDataEntryValue | null; customerEmail: FormDataEntryValue | null }) {
   const now = new Date().toISOString();
-  const order: LocalOrder = { id: randomUUID(), customer_name: str(input.customerName), customer_phone: str(input.customerPhone), customer_email: str(input.customerEmail), status: "awaiting_deposit", deposit_amount_cents: 990, selected_count: 0, selection_amount_cents: 0, selected_theme_ids: [], uploadedPhoto: null, uploadedPhotos: {}, admin_note: null, reject_reason: null, created_at: now, updated_at: now, order_assets: [], payments: [] };
+  const order: LocalOrder = { id: randomUUID(), customer_name: str(input.customerName), customer_phone: str(input.customerPhone), customer_email: str(input.customerEmail), status: "pending_theme", deposit_amount_cents: 990, selected_count: 0, selection_amount_cents: 0, selected_theme_ids: [], uploadedPhoto: null, uploadedPhotos: {}, admin_note: null, reject_reason: null, created_at: now, updated_at: now, order_assets: [], payments: [] };
   if (isSupabaseStore()) {
     await saveSupabaseOrder(order);
     return order;
@@ -184,7 +184,7 @@ export async function saveLocalThemeSelection(orderId: string, themeIds: string[
   if (uniqueThemeIds.length < 1 || uniqueThemeIds.length > 2) throw new Error("请选择 1-2 个主题");
   return updateLocalOrder(orderId, (order) => {
     order.selected_theme_ids = uniqueThemeIds;
-    order.status = "ready_to_generate";
+    order.status = "awaiting_deposit";
     return order;
   });
 }
@@ -194,7 +194,7 @@ export async function payLocalOrder(orderId: string, kind: "deposit" | "selectio
     if (amount <= 0) throw new Error("No payable amount");
     const now = new Date().toISOString();
     order.payments.push({ id: randomUUID(), order_id: orderId, kind, status: "paid", amount_cents: amount, provider: "mock", provider_trade_no: tradeNo, paid_at: now, created_at: now });
-    if (kind === "deposit") order.status = "pending_theme";
+    if (kind === "deposit") order.status = "ready_to_generate";
     else {
       order.status = "completed";
       order.order_assets = order.order_assets.map((asset) => ({ ...asset, is_unlocked: asset.kind === "generated" && asset.is_selected ? true : asset.is_unlocked }));

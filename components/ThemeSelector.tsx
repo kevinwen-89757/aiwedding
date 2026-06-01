@@ -67,7 +67,7 @@ export function ThemeSelector({ orderId, themes, selectedThemeIds }: { orderId: 
     const response = await fetch(`/api/orders/${orderId}/themes`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ themeIds: Array.from(selected) }) });
     setSaving(false);
     if (response.ok) {
-      router.push(`/orders/${orderId}/status`);
+      router.push(`/orders/${orderId}/pay?kind=deposit`);
       router.refresh();
       return;
     }
