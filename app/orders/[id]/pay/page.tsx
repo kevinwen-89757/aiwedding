@@ -22,7 +22,7 @@ export default async function PayPage({ params, searchParams }: PageProps) {
 
         <div className="pay-qr-wrap">
           <img
-            src="/wxpay-qr.jpg"
+            src={paymentKind === "deposit" ? "/wxpay-deposit.jpg" : "/wxpay-selection.jpg"}
             alt="微信支付二维码"
             className="pay-qr-img"
           />
