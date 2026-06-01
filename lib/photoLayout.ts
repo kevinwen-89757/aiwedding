@@ -18,34 +18,32 @@ export function ratioKind(asset: OrderAsset) {
 }
 
 export function buildPhotoLayoutRows(assets: OrderAsset[]) {
+  // 先把竖图和横图分组
+  const landscape: OrderAsset[] = [];
+  const portrait: OrderAsset[] = [];
+  for (const a of assets) {
+    (ratioKind(a) === "landscape" ? landscape : portrait).push(a);
+  }
+
   const rows: PhotoLayoutRow[] = [];
-  let index = 0;
-  while (index < assets.length) {
-    const current = assets[index];
-    const currentKind = ratioKind(current);
 
-    // 16:9 横图始终独占一行
-    if (currentKind === "landscape") {
-      rows.push({ id: current.id, kind: "single-landscape", assets: [current] });
-      index += 1;
-      continue;
-    }
-
-    const next = assets[index + 1];
-    const third = assets[index + 2];
-    const nextKind = next ? ratioKind(next) : null;
-    const thirdKind = third ? ratioKind(third) : null;
-
-    if (currentKind === "portrait" && nextKind === "portrait" && thirdKind === "portrait") {
-      rows.push({ id: `${current.id}-${next!.id}-${third!.id}`, kind: "portrait-triple", assets: [current, next!, third!] });
-      index += 3;
-    } else if (currentKind === "portrait" && nextKind === "portrait") {
-      rows.push({ id: `${current.id}-${next!.id}`, kind: "portrait-pair", assets: [current, next!] });
-      index += 2;
+  // 竖图两两配对，末行允许独张
+  let pi = 0;
+  while (pi < portrait.length) {
+    if (portrait.length - pi === 1) {
+      // 末行只剩一张
+      rows.push({ id: portrait[pi].id, kind: "single-portrait", assets: [portrait[pi]] });
+      pi += 1;
     } else {
-      rows.push({ id: current.id, kind: "single-portrait", assets: [current] });
-      index += 1;
+      rows.push({ id: `${portrait[pi].id}-${portrait[pi + 1].id}`, kind: "portrait-pair", assets: [portrait[pi], portrait[pi + 1]] });
+      pi += 2;
     }
   }
+
+  // 横图各自独占一行
+  for (const a of landscape) {
+    rows.push({ id: a.id, kind: "single-landscape", assets: [a] });
+  }
+
   return rows;
 }
