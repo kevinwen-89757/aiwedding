@@ -27,16 +27,20 @@ export function buildPhotoLayoutRows(assets: OrderAsset[]) {
 
   const rows: PhotoLayoutRow[] = [];
 
-  // 竖图两两配对，末行允许独张
+  // 竖图：优先3张一行，次选2张，末行仅剩1张时才独占
   let pi = 0;
   while (pi < portrait.length) {
-    if (portrait.length - pi === 1) {
-      // 末行只剩一张
+    const left = portrait.length - pi;
+    if (left >= 3) {
+      rows.push({ id: `${portrait[pi].id}-${portrait[pi+1].id}-${portrait[pi+2].id}`, kind: "portrait-triple", assets: [portrait[pi], portrait[pi+1], portrait[pi+2]] });
+      pi += 3;
+    } else if (left === 2) {
+      rows.push({ id: `${portrait[pi].id}-${portrait[pi+1].id}`, kind: "portrait-pair", assets: [portrait[pi], portrait[pi+1]] });
+      pi += 2;
+    } else {
+      // 末行只剩1张
       rows.push({ id: portrait[pi].id, kind: "single-portrait", assets: [portrait[pi]] });
       pi += 1;
-    } else {
-      rows.push({ id: `${portrait[pi].id}-${portrait[pi + 1].id}`, kind: "portrait-pair", assets: [portrait[pi], portrait[pi + 1]] });
-      pi += 2;
     }
   }
 
