@@ -13,12 +13,15 @@ function previewUrl(asset: OrderAsset) {
 
 export function SelectionGrid({ orderId, assets }: { orderId: string; assets: OrderAsset[] }) {
   const router = useRouter();
+  const selectedAssets = assets.filter((a) => a.generation_type !== "recommendation");
+  const recommendationAssets = assets.filter((a) => a.generation_type === "recommendation");
   const [selected, setSelected] = useState(() => new Set(assets.filter((asset) => asset.is_selected).map((asset) => asset.id)));
   const [saving, setSaving] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<OrderAsset | null>(null);
   const [mounted, setMounted] = useState(false);
   const total = useMemo(() => selected.size * 6000, [selected]);
-  const rows = useMemo(() => buildPhotoLayoutRows(assets), [assets]);
+  const rows = useMemo(() => buildPhotoLayoutRows(selectedAssets), [selectedAssets]);
+  const recRows = useMemo(() => buildPhotoLayoutRows(recommendationAssets), [recommendationAssets]);
   useEffect(() => {
     setMounted(true);
   }, []);
@@ -105,6 +108,42 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
         </div>
       ))}
     </div>
+    {recommendationAssets.length > 0 ? (
+      <section className="recommendation-section">
+        <div className="recommendation-head">
+          <h2>更多风格推荐</h2>
+          <p className="muted">以下为其他风格的首图参考，不参与选片。</p>
+        </div>
+        <div className="photo-grid recommendation-photo-grid">
+          {recRows.map((row) => (
+            <div className={`selection-row selection-row-${row.kind}`} key={row.id}>
+              {row.assets.map((asset) => (
+                <article className={`photo-tile selection-photo-tile selection-photo-tile-${ratioKind(asset)}`} key={asset.id}>
+                  <div
+                    className="selection-preview-frame"
+                    style={{ aspectRatio: aspectRatioFor(asset) }}
+                  >
+                    <img src={previewUrl(asset)} alt={`${asset.theme_name ?? "风格"} 首图`} />
+                    <span className="selection-photo-number">#{asset.sort_order}</span>
+                    <span className="recommendation-theme-label">{asset.theme_name}</span>
+                    <button
+                      className="selection-preview-action"
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        setPreviewAsset(asset);
+                      }}
+                    >
+                      预览大图
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          ))}
+        </div>
+      </section>
+    ) : null}
     <div className="sticky-bar"><strong>{selected.size > 0 ? `已选 ${selected.size} 张` : "请选择喜欢的照片"}</strong><div className="actions"><strong>解锁无水印原图 {formatCny(total)}</strong><button onClick={submit} disabled={saving || selected.size === 0}><LockKeyhole size={18} />{saving ? "保存中..." : selected.size > 0 ? `确认解锁 ${selected.size} 张 · ${formatCny(total)}` : "先选择想解锁的照片"}</button></div></div>
     {mounted && previewAsset ? createPortal((
       <div className="selection-lightbox" role="dialog" aria-modal="true" aria-label={`第 ${previewAsset.sort_order} 张带水印预览图`} onClick={() => setPreviewAsset(null)}>

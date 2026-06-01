@@ -1,5 +1,3 @@
-import { appConfig } from "@/lib/config";
-
 export type WeddingPrompt = {
   id: string;
   name: string;
@@ -28,7 +26,7 @@ export type WeddingTheme = {
 export type GenerationPromptPlan = {
   theme: WeddingTheme;
   prompt: WeddingPrompt;
-  type: "normal" | "sweet_spot";
+  type: "normal" | "sweet_spot" | "recommendation";
   themeKey: string;
   promptIndex: number;
   promptTitle: string;
@@ -575,33 +573,42 @@ export function getSelectedThemes(themeIds: string[]) {
 }
 
 export function buildGenerationPlan(themeIds: string[]): GenerationPromptPlan[] {
-  const themes = getSelectedThemes(themeIds);
-  const limit = appConfig.generationTestLimit;
-  const totalNormalCount = Number.isFinite(limit) && limit > 0 ? limit : 20;
-  const basePerThemeCount = Math.floor(totalNormalCount / themes.length);
-  const remainder = totalNormalCount % themes.length;
-  const normalItems = themes.flatMap((theme) => {
-    const themeIndex = themes.findIndex((item) => item.themeId === theme.themeId);
-    const normalPerThemeCount = basePerThemeCount + (themeIndex < remainder ? 1 : 0);
-    const normalPrompts = theme.prompts.slice(1);
-    const promptPool = normalPrompts.length > 0 ? normalPrompts : theme.prompts;
-    return Array.from({ length: normalPerThemeCount }, (_, index) => {
-      // Ensure unique: use min to prevent cycling past end of pool
-      const poolIndex = Math.min(index, promptPool.length - 1);
-      const prompt = promptPool[index < promptPool.length ? index : poolIndex];
-      const promptIndex = theme.prompts.findIndex((item) => item.id === prompt.id);
-      return {
+  const selectedThemes = getSelectedThemes(themeIds);
+  const otherThemes = weddingThemes.filter(
+    (t) => !selectedThemes.some((s) => s.themeId === t.themeId)
+  );
+
+  // 选中主题：全部 5 张 (A-E)
+  const selectedItems = selectedThemes.flatMap((theme) =>
+    theme.prompts.map((prompt) => ({
+      theme,
+      prompt,
+      type: "normal" as const,
+      themeKey: theme.themeId,
+      promptIndex: theme.prompts.findIndex((p) => p.id === prompt.id),
+      promptTitle: prompt.name,
+      isCoverPrompt: prompt.isCoverPrompt,
+    }))
+  );
+
+  // 其他主题：只取首图 cover (A)
+  const otherCoverItems = otherThemes.flatMap((theme) => {
+    const coverPrompt = theme.prompts.find((p) => p.isCoverPrompt) ?? theme.prompts[0];
+    return [
+      {
         theme,
-        prompt,
-        type: "normal" as const,
+        prompt: coverPrompt,
+        type: "recommendation" as const,
         themeKey: theme.themeId,
-        promptIndex,
-        promptTitle: prompt.name,
-        isCoverPrompt: prompt.isCoverPrompt
-      };
-    });
+        promptIndex: theme.prompts.findIndex((p) => p.id === coverPrompt.id),
+        promptTitle: coverPrompt.name,
+        isCoverPrompt: true,
+      },
+    ];
   });
-  return normalItems;
+
+  // 先排选中主题，再排推荐首图
+  return [...selectedItems, ...otherCoverItems];
 }
 
 export function buildPreviewGenerationPlan(themeIds: string[]) {
