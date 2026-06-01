@@ -11,6 +11,7 @@ function progressInfo(order: Awaited<ReturnType<typeof getLocalOrder>>, normaliz
   const generatedCount = order.order_assets.filter((asset) => asset.kind === "generated").length;
   const hasTaskId = Boolean(order.generation_jobs?.some((job) => job.task_id));
   if (normalized === "generation_failed") return { progress: 0, stageText: "生成遇到问题，管理员会重新处理", helperText: "请稍后查看，或联系工作人员确认处理进度。", queueText: "", canAutoRefresh: false };
+  if (normalized === "completed" || normalized === "paid") return { progress: 100, stageText: "订单已完成，所有图片已生成", helperText: "可下载无水印原图，如有问题请联系工作人员。", queueText: "", canAutoRefresh: false };
   if (normalized === "pending_selection") return { progress: 100, stageText: "预览图已生成，可以开始选片", helperText: "预览图已生成，可以开始选片。", queueText: "", canAutoRefresh: false };
   if (normalized === "generating") {
     if (generatedCount > 0) return { progress: Math.min(90, 80 + generatedCount), stageText: "已生成部分预览图，剩余图片还在处理中", helperText: `目前已生成 ${generatedCount} 张预览图，页面会自动刷新进度。`, queueText: "剩余任务会继续自动查询，不需要重复提交订单。", canAutoRefresh: true };

@@ -15,3 +15,5 @@ storage/previews/*
 .netlify/
 tsconfig.tsbuildinfo
 .next/
+.vercel
+.env*
