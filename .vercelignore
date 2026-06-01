@@ -2,6 +2,5 @@
 .next
 node_modules
 storage
-public/demo
 .netlify
 deno.lock
