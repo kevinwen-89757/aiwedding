@@ -6,14 +6,13 @@ main {
 /* 客服微信导航项 */
 .wechat-contact {
   position: relative;
-  display: flex;
-  align-items: center;
+  display: inline-block;
+  vertical-align: baseline;
 }
 
 .wechat-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
+  display: inline-block;
+  vertical-align: baseline;
   background: none;
   border: none;
   cursor: pointer;
@@ -21,17 +20,11 @@ main {
   color: var(--muted);
   font-family: inherit;
   padding: 0;
-  line-height: 1;
   transition: color .15s ease;
 }
 
 .wechat-btn:hover {
   color: var(--ink);
-}
-
-.wechat-icon {
-  color: #07C160;
-  flex-shrink: 0;
 }
 
 /* 弹窗 */
