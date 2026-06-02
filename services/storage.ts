@@ -65,11 +65,12 @@ export async function saveGeneratedImage(buffer: Buffer, orderId: string, index:
   return { relativePath, absolutePath, mimeType: "image/png" };
 }
 
-export async function saveGeneratedImageBuffer(buffer: Buffer, orderId: string, index: number, mimeType = "image/png"): Promise<StoredFile> {
+export async function saveGeneratedImageBuffer(buffer: Buffer, orderId: string, index: number, mimeType = "image/png", taskSuffix?: string): Promise<StoredFile> {
   const ext = mimeType === "image/jpeg" ? ".jpg" : mimeType === "image/webp" ? ".webp" : ".png";
+  const fileBase = taskSuffix ? `${String(index + 1).padStart(2, "0")}-${taskSuffix}` : String(index + 1).padStart(2, "0");
   const relativePath = isSupabaseStorage()
-    ? `orders/${orderId}/generated/original/${String(index + 1).padStart(2, "0")}${ext}`
-    : `generated/${orderId}/${String(index + 1).padStart(2, "0")}${ext}`;
+    ? `orders/${orderId}/generated/original/${fileBase}${ext}`
+    : `generated/${orderId}/${fileBase}${ext}`;
   if (isSupabaseStorage()) {
     await uploadSupabaseObject(relativePath, buffer, mimeType);
     return { relativePath, absolutePath: null, mimeType };
@@ -98,10 +99,11 @@ export async function saveGeneratedUpload(file: File, orderId: string, index: nu
   return { relativePath, absolutePath, mimeType: file.type };
 }
 
-export async function savePreviewImageBuffer(buffer: Buffer, orderId: string, imageNumber: number) {
+export async function savePreviewImageBuffer(buffer: Buffer, orderId: string, imageNumber: number, taskSuffix?: string) {
+  const fileBase = taskSuffix ? `${String(imageNumber).padStart(2, "0")}-${taskSuffix}` : String(imageNumber).padStart(2, "0");
   const relativePath = isSupabaseStorage()
-    ? `orders/${orderId}/generated/preview/${String(imageNumber).padStart(2, "0")}.jpg`
-    : `previews/${orderId}/${String(imageNumber).padStart(2, "0")}.jpg`;
+    ? `orders/${orderId}/generated/preview/${fileBase}.jpg`
+    : `previews/${orderId}/${fileBase}.jpg`;
   if (isSupabaseStorage()) {
     await uploadSupabaseObject(relativePath, buffer, "image/jpeg");
     return { relativePath, absolutePath: null, mimeType: "image/jpeg" };

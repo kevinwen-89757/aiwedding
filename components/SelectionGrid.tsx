@@ -13,8 +13,10 @@ function previewUrl(asset: OrderAsset) {
 
 export function SelectionGrid({ orderId, assets }: { orderId: string; assets: OrderAsset[] }) {
   const router = useRouter();
-  const selectedAssets = assets.filter((a) => a.generation_type !== "recommendation");
-  const recommendationAssets = assets.filter((a) => a.generation_type === "recommendation");
+  // 按 preview_path 去重，防止同一张图片显示多次
+  const uniqueAssets = assets.filter((a, i, arr) => arr.findIndex((x) => x.preview_path === a.preview_path) === i);
+  const selectedAssets = uniqueAssets.filter((a) => a.generation_type !== "recommendation");
+  const recommendationAssets = uniqueAssets.filter((a) => a.generation_type === "recommendation");
   const [selected, setSelected] = useState(() => new Set(assets.filter((asset) => asset.is_selected).map((asset) => asset.id)));
   const [saving, setSaving] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<OrderAsset | null>(null);

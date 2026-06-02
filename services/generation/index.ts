@@ -397,16 +397,21 @@ export async function startApiGeneration(order: LocalOrder) {
   return getLocalOrder(order.id);
 }
 
-async function saveCompletedApiJob(order: LocalOrder, job: GenerationJob, imageUrl: string, status: string) {
-  if (hasAssetForTask(order, job.task_id)) return;
-  await appendApiProgress(order.id, [`APIMart 返回图片 URL：${imageUrl}`, `图 ${job.image_number} 正在下载生成图。`]);
+async function saveCompletedApiJob(orderId: string, job: GenerationJob, imageUrl: string, status: string) {
+  // 每次保存前重新读取订单，防止 stale snapshot 导致重复
+  const freshOrder = await getLocalOrder(orderId);
+  if (!freshOrder) return;
+  if (hasAssetForTask(freshOrder, job.task_id)) return;
+  // 用 task_id 前 8 位做文件名，避免同 image_number 的不同任务互相覆盖
+  const taskSuffix = job.task_id.replace(/^create-failed-/, "").slice(0, 8);
+  await appendApiProgress(orderId, [`APIMart 返回图片 URL：${imageUrl}`, `图 ${job.image_number} 正在下载生成图。`]);
   const downloaded = await apimartDownloadImage(imageUrl);
-  const generated = await saveGeneratedImageBuffer(downloaded.buffer, order.id, job.image_number - 1, downloaded.mimeType);
-  await appendApiProgress(order.id, [`图 ${job.image_number} 原图已保存到 Supabase Storage：${generated.relativePath}`]);
-  const preview = await savePreviewImageBuffer(await createWatermarkedPreviewBuffer(downloaded.buffer), order.id, job.image_number);
-  await appendApiProgress(order.id, [`图 ${job.image_number} 水印预览图已保存到 Supabase Storage：${preview.relativePath}`]);
+  const generated = await saveGeneratedImageBuffer(downloaded.buffer, orderId, job.image_number - 1, downloaded.mimeType, taskSuffix);
+  await appendApiProgress(orderId, [`图 ${job.image_number} 原图已保存到 Supabase Storage：${generated.relativePath}`]);
+  const preview = await savePreviewImageBuffer(await createWatermarkedPreviewBuffer(downloaded.buffer), orderId, job.image_number, taskSuffix);
+  await appendApiProgress(orderId, [`图 ${job.image_number} 水印预览图已保存到 Supabase Storage：${preview.relativePath}`]);
   const metadata = await imageMetadataFromBuffer(downloaded.buffer);
-  await addLocalAsset(order.id, {
+  await addLocalAsset(orderId, {
     kind: "generated",
     original_path: generated.relativePath,
     preview_path: preview.relativePath,
@@ -475,7 +480,7 @@ export async function pollApiGeneration(orderId: string) {
       await appendApiProgress(orderId, [`图 ${job.image_number} 第 ${pollCount} 次查询：状态 ${result.status}`]);
       if (["completed", "complete", "success", "succeeded", "done"].includes(result.status)) {
         if (!result.imageUrl) throw new Error(`APIMart 任务 ${job.task_id} 已完成，但没有返回结果图片 URL。`);
-        await saveCompletedApiJob(await getLocalOrder(orderId) as LocalOrder, job, result.imageUrl, result.status);
+        await saveCompletedApiJob(orderId, job, result.imageUrl, result.status);
         await updateLocalOrder(orderId, (current) => ({
           ...current,
           status: "generating",

@@ -12,6 +12,9 @@ export async function POST(request: Request, context: Context) {
   const { id } = await context.params;
   const order = await getLocalOrder(id);
   if (!order) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  if (order.status !== "ready_to_generate") {
+    return NextResponse.json({ error: `当前状态 ${order.status} 不允许启动生成，仅 ready_to_generate 可触发。` }, { status: 409 });
+  }
   const references = getReferenceUploadAssets(order);
   const runtimeConfig = getGenerationRuntimeConfig(order);
   console.log("[start-generation] api precheck", {
