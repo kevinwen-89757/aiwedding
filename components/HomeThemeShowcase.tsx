@@ -41,7 +41,7 @@ function ThemeImage({ src, alt, className = "", onRatio }: { src?: string; alt: 
   }, [src]);
   if (!src || failed) return <span className={`theme-image-placeholder ${className}`} aria-hidden="true" />;
   return (
-    <span className={`theme-image-frame ${className}`} style={{ backgroundImage: `url(${src})` }}>
+    <span className={`theme-image-frame ${className}`}>
       <img ref={imgRef} src={src} alt={alt} onError={() => setFailed(true)} onLoad={(event) => {
         const nextRatio = ratioFromLoadEvent(event);
         if (nextRatio) onRatio?.(nextRatio);
