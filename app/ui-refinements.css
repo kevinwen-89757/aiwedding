@@ -514,6 +514,10 @@ main {
   aspect-ratio: 3 / 4;
 }
 
+.selection-row-single-landscape {
+  grid-template-columns: 1fr;
+}
+
 .selection-row-single-landscape .selection-photo-tile {
   width: min(100%, 1320px);
   justify-self: center;
@@ -531,6 +535,16 @@ main {
 .selection-row-single-portrait .selection-preview-frame {
   aspect-ratio: 3 / 4;
   max-height: 720px;
+}
+
+/* 主选片区 single-landscape 行 */
+.selection-row-single-landscape {
+  grid-template-columns: 1fr;
+}
+
+/* 主选片区 single-portrait 行 */
+.selection-row-single-portrait {
+  grid-template-columns: 1fr;
 }
 
 .selection-row-portrait-triple .selection-photo-tile {
@@ -573,16 +587,68 @@ main {
 
 .recommendation-theme-label {
   position: absolute;
-  bottom: 10px;
-  left: 10px;
+  bottom: 12px;
+  left: 12px;
   z-index: 2;
   background: rgba(17, 17, 17, .72);
   color: #fff;
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 600;
-  padding: 4px 10px;
-  border-radius: 8px;
+  padding: 6px 14px;
+  border-radius: 10px;
   pointer-events: none;
+}
+
+/* 推荐风格：画廊式大图展示 */
+.recommendation-photo-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  align-items: center;
+}
+
+.recommendation-photo-grid .selection-row {
+  display: grid;
+  gap: 32px;
+  width: 100%;
+  max-width: 100%;
+  align-items: center;
+}
+
+.recommendation-photo-grid .selection-row-single-landscape {
+  grid-template-columns: 1fr;
+  width: min(100%, 1200px);
+}
+
+.recommendation-photo-grid .selection-row-single-landscape .selection-photo-tile {
+  width: 100%;
+}
+
+.recommendation-photo-grid .selection-row-single-landscape .selection-preview-frame {
+  aspect-ratio: 16 / 9;
+}
+
+.recommendation-photo-grid .selection-row-single-portrait {
+  grid-template-columns: 1fr;
+  width: min(100%, 680px);
+}
+
+.recommendation-photo-grid .selection-row-single-portrait .selection-photo-tile {
+  width: 100%;
+}
+
+.recommendation-photo-grid .selection-row-portrait-pair {
+  grid-template-columns: repeat(2, 1fr);
+  width: min(100%, 900px);
+}
+
+.recommendation-photo-grid .selection-row-portrait-triple {
+  grid-template-columns: repeat(3, 1fr);
+  width: min(100%, 1100px);
+}
+
+.recommendation-photo-grid .selection-photo-tile {
+  min-width: 0;
 }
 
 .selection-preview-frame {
