@@ -20,7 +20,6 @@ export function AdminConfirmButtons({ orderId, status }: { orderId: string; stat
   }
 
   async function startGeneration() {
-    if (!confirm("确认开始 AI 生成？将调用 APIMart 接口生成预览图。")) return;
     setBusy("generate");
     const res = await fetch(`/api/admin/orders/${orderId}/start-generation`, { method: "POST" });
     setBusy(null);
