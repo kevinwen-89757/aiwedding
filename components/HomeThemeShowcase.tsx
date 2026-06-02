@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { SyntheticEvent } from "react";
 import { ThemePreviewModal } from "@/components/ThemePreviewModal";
 import type { WeddingTheme } from "@/services/prompts";
@@ -27,10 +27,22 @@ function ratioFromLoadEvent(event: SyntheticEvent<HTMLImageElement>): ImageRatio
 
 function ThemeImage({ src, alt, className = "", onRatio }: { src?: string; alt: string; className?: string; onRatio?: (ratio: ImageRatio) => void }) {
   const [failed, setFailed] = useState(false);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const onRatioRef = useRef(onRatio);
+  onRatioRef.current = onRatio;
+  useEffect(() => {
+    const img = imgRef.current;
+    if (img?.complete && img.naturalWidth) {
+      const { naturalWidth: width, naturalHeight: height } = img;
+      const ratio = width / height;
+      if (ratio >= 1.35) onRatioRef.current?.("landscape");
+      else onRatioRef.current?.(ratio > .86 ? "square" : "portrait");
+    }
+  }, [src]);
   if (!src || failed) return <span className={`theme-image-placeholder ${className}`} aria-hidden="true" />;
   return (
     <span className={`theme-image-frame ${className}`} style={{ backgroundImage: `url(${src})` }}>
-      <img src={src} alt={alt} onError={() => setFailed(true)} onLoad={(event) => {
+      <img ref={imgRef} src={src} alt={alt} onError={() => setFailed(true)} onLoad={(event) => {
         const nextRatio = ratioFromLoadEvent(event);
         if (nextRatio) onRatio?.(nextRatio);
       }} />
