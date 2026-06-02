@@ -98,8 +98,8 @@ export function UploadForm() {
       form.set("groomPhoto", compressedGroom);
       const response = await fetch("/api/orders", { method: "POST", body: form });
       const payload = await response.json().catch(() => ({ error: "创建订单失败", detail: `服务器返回了不可解析内容，状态码 ${response.status}` }));
-      setSubmitting(false);
       if (!response.ok) {
+        setSubmitting(false);
         const errorText = [payload.error ?? `上传失败，状态码 ${response.status}`, payload.detail].filter(Boolean).join("\n");
         setError(errorText);
         return;
