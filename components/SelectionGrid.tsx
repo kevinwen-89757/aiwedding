@@ -63,10 +63,11 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
   const [mounted, setMounted] = useState(false);
   const total = useMemo(() => {
     const base = selected.size * 5990;
-    const freeCount = Math.floor(selected.size / 10);
-    return base - freeCount * 5990;
+    const freeCount = Math.floor(selected.size / 8);
+    return Math.max(0, base - freeCount * 5990);
   }, [selected]);
-  const freeCount = useMemo(() => Math.floor(selected.size / 10), [selected]);
+  const freeCount = useMemo(() => Math.floor(selected.size / 8), [selected]);
+  const depositDeduct = 990; // ¥9.9 试看费抵扣（分）
   const themeGroups = useMemo(() => groupByTheme(selectedAssets), [selectedAssets]);
   const recRows = useMemo(() => buildPhotoLayoutRows(recommendationAssets), [recommendationAssets]);
   useEffect(() => { setMounted(true); }, []);
@@ -159,14 +160,15 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
     <div className="sticky-bar">
       <div>
         <strong>{selected.size > 0 ? `已选 ${selected.size} 张` : "请选择喜欢的照片"}</strong>
-        {freeCount > 0 ? <span className="promo-badge">满10免{freeCount}张</span> : null}
+        {freeCount > 0 ? <span className="promo-badge">满8免{freeCount}张</span> : null}
       </div>
       <div className="actions">
         <div className="price-breakdown">
-          <strong>解锁无水印原图 {formatCny(total)}</strong>
-          {selected.size > 0 && selected.size >= 10 ? <span className="deduct-tag">已减 ¥{(Math.floor(selected.size / 10) * 5990) / 100}</span> : null}
+          <span className="pay-breakdown-row">正片：{formatCny(selected.size * 5990)}{selected.size >= 8 ? `（满8免${freeCount}张 -${formatCny(freeCount * 5990)}）` : ""}</span>
+          <span className="pay-breakdown-row deduct-row">试看费抵扣：-{formatCny(depositDeduct)}</span>
+          <span className="pay-breakdown-total">实付：{formatCny(Math.max(0, total - depositDeduct))}</span>
         </div>
-        <button onClick={submit} disabled={saving || selected.size === 0}><LockKeyhole size={18} />{saving ? "保存中..." : selected.size > 0 ? `确认解锁 ${selected.size} 张 · ${formatCny(total)}` : "先选择想解锁的照片"}</button>
+        <button onClick={submit} disabled={saving || selected.size === 0}><LockKeyhole size={18} />{saving ? "保存中..." : selected.size > 0 ? `确认解锁` : "先选择想解锁的照片"}</button>
       </div>
     </div>
     {mounted && previewAsset ? createPortal((
