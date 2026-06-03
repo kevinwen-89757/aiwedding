@@ -7,7 +7,7 @@ import { weddingThemes } from "@/services/prompts";
 
 function homeCarouselImages() {
   return [1, 2, 3, 4, 5, 6]
-    .map((index) => `/carousel/slide-${index}.png`)
+    .map((index) => `/carousel/slide-${index}.jpg`)
     .filter((src) => existsSync(path.join(process.cwd(), "public", src)));
 }
 
