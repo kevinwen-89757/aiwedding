@@ -599,6 +599,58 @@ main {
   pointer-events: none;
 }
 
+/* 推荐风格：画廊式大图展示，可选可解锁 */
+.recommendation-photo-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 40px;
+  align-items: center;
+}
+
+.recommendation-photo-grid .selection-row {
+  display: grid;
+  gap: 32px;
+  width: 100%;
+  max-width: 100%;
+  align-items: center;
+}
+
+.recommendation-photo-grid .selection-row-single-landscape {
+  grid-template-columns: 1fr;
+  width: min(100%, 1200px);
+}
+
+.recommendation-photo-grid .selection-row-single-landscape .selection-photo-tile {
+  width: 100%;
+}
+
+.recommendation-photo-grid .selection-row-single-landscape .selection-preview-frame {
+  aspect-ratio: 16 / 9;
+}
+
+.recommendation-photo-grid .selection-row-single-portrait {
+  grid-template-columns: 1fr;
+  width: min(100%, 680px);
+}
+
+.recommendation-photo-grid .selection-row-single-portrait .selection-photo-tile {
+  width: 100%;
+}
+
+.recommendation-photo-grid .selection-row-portrait-pair {
+  grid-template-columns: repeat(2, 1fr);
+  width: min(100%, 900px);
+}
+
+.recommendation-photo-grid .selection-row-portrait-triple {
+  grid-template-columns: repeat(3, 1fr);
+  width: min(100%, 1100px);
+}
+
+.recommendation-photo-grid .selection-photo-tile {
+  min-width: 0;
+}
+
 .selection-preview-frame {
   position: relative;
   width: 100%;
