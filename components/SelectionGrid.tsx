@@ -69,8 +69,8 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
   const [mounted, setMounted] = useState(false);
   const unlockedCount = useMemo(() => Array.from(selected).filter((id) => assets.find((a) => a.id === id)?.is_unlocked).length, [selected, assets]);
   const newCount = selected.size - unlockedCount;
-  const totalFreeCount = useMemo(() => Math.floor(selected.size / 8), [selected]);
-  const oldFreeCount = useMemo(() => Math.floor(unlockedCount / 8), [unlockedCount]);
+  const totalFreeCount = useMemo(() => Math.floor(selected.size / 10), [selected]);
+  const oldFreeCount = useMemo(() => Math.floor(unlockedCount / 10), [unlockedCount]);
   const newFreeCount = totalFreeCount - oldFreeCount;
   const payableCount = Math.max(0, newCount - newFreeCount);
   const payableAmount = payableCount * 5990;
@@ -78,7 +78,7 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
   const finalAmount = Math.max(0, payableAmount - depositDeduct);
   const themeGroups = useMemo(() => groupByTheme(selectedAssets), [selectedAssets]);
   const recRows = useMemo(() => buildPhotoLayoutRows(recommendationAssets), [recommendationAssets]);
-  const promoRemaining = Math.max(0, 8 - (selected.size % 8));
+  const promoRemaining = Math.max(0, 10 - (selected.size % 10));
   const hasAnyUnlocked = assets.some((a) => a.is_unlocked);
   useEffect(() => { setMounted(true); }, []);
   useEffect(() => {
@@ -110,10 +110,10 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
   }
   return <>
     <div className="promo-banner">
-      <span className="promo-banner-text">🎁 满 8 张免 1 张</span>
+      <span className="promo-banner-text">🎁 满 10 张免 1 张</span>
       <span className="promo-banner-hint">
-        {selected.size >= 8
-          ? `已满足满8免1（共免 ${totalFreeCount} 张）${promoRemaining < 8 ? `，再选 ${promoRemaining} 张可再免1张` : ""}`
+        {selected.size >= 10
+          ? `已满足满10免1（共免 ${totalFreeCount} 张）${promoRemaining < 10 ? `，再选 ${promoRemaining} 张可再免1张` : ""}`
           : `再选 ${promoRemaining} 张即可免 1 张`}
       </span>
     </div>
@@ -185,13 +185,13 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
             ? `已选 ${selected.size} 张${unlockedCount > 0 ? `（含 ${unlockedCount} 张已解锁）` : ""}`
             : "请选择喜欢的照片"}
         </strong>
-        {totalFreeCount > 0 ? <span className="promo-badge">满8免{totalFreeCount}张</span> : null}
+        {totalFreeCount > 0 ? <span className="promo-badge">满10免{totalFreeCount}张</span> : null}
       </div>
       <div className="actions">
         <div className="price-breakdown">
           <span className="pay-breakdown-row">
             正片：{formatCny(newCount * 5990)}
-            {totalFreeCount > 0 ? `（满8免${totalFreeCount}张，本次新增免${newFreeCount}张 -${formatCny(newFreeCount * 5990)}）` : ""}
+            {totalFreeCount > 0 ? `（满10免${totalFreeCount}张，本次新增免${newFreeCount}张 -${formatCny(newFreeCount * 5990)}）` : ""}
           </span>
           {unlockedCount > 0 ? <span className="pay-breakdown-row">已解锁：{unlockedCount} 张（无需付费）</span> : null}
           <span className="pay-breakdown-row deduct-row">试看费抵扣：-{formatCny(depositDeduct)}</span>

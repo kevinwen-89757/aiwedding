@@ -183,8 +183,8 @@ export async function saveLocalSelection(orderId: string, assetIds: string[]) {
     order.selected_count = selected.size;
     const unlockedSelected = order.order_assets.filter((asset) => asset.kind === "generated" && asset.is_unlocked && selected.has(asset.id)).length;
     const newSelected = selected.size - unlockedSelected;
-    const totalFree = Math.floor(selected.size / 8);
-    const oldFree = Math.floor(unlockedSelected / 8);
+    const totalFree = Math.floor(selected.size / 10);
+    const oldFree = Math.floor(unlockedSelected / 10);
     const newFree = totalFree - oldFree;
     order.selection_amount_cents = Math.max(0, newSelected - newFree) * 5990;
     order.status = selected.size > 0 ? "pending_final_payment" : "pending_selection";
