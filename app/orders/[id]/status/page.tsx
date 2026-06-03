@@ -15,9 +15,9 @@ function progressInfo(order: Awaited<ReturnType<typeof getLocalOrder>>, normaliz
   if (normalized === "completed" || normalized === "paid") return { progress: 100, stageText: "订单已完成，所有图片已生成", helperText: "可下载无水印原图，如有问题请联系工作人员。", queueText: "", canAutoRefresh: false };
   if (normalized === "pending_selection") return { progress: 100, stageText: "预览图已生成，可以开始选片", helperText: "预览图已生成，可以开始选片。", queueText: "", canAutoRefresh: false };
   if (normalized === "generating") {
-    if (generatedCount > 0) return { progress: Math.min(95, Math.round(generatedCount / (plannedCount || generatedCount) * 80) + 10), stageText: "正在生成预览图中", helperText: "系统自动每 60 秒更新进度，请耐心等待。", queueText: "正在持续生成中，无需重复提交订单，页面会自动刷新。", canAutoRefresh: true };
-    if (hasTaskId) return { progress: 65, stageText: "已进入 AI 生成队列，正在生成高清婚纱写真预览", helperText: "预计需要 10-15 分钟；系统将每隔 60 秒自动查询最新进度，请保持页面。", queueText: "AI 生成通常需要几分钟，请保持页面或稍后回来查看。", canAutoRefresh: true };
-    return { progress: 45, stageText: "正在排队，等待进入 AI 生成队列", helperText: "已收到照片和风格，系统会按顺序处理生成任务。", queueText: "如果当前同时生成的人较多，等待时间会略有增加。", canAutoRefresh: true };
+    if (generatedCount > 0) return { progress: Math.min(95, Math.round(generatedCount / (plannedCount || generatedCount) * 80) + 10), stageText: "正在生成预览图中", helperText: "预览图生成中，页面会自动更新。", queueText: "", canAutoRefresh: true };
+    if (hasTaskId) return { progress: 65, stageText: "已进入 AI 生成队列，正在生成高清婚纱写真预览", helperText: "预计需要 10-15 分钟，请保持页面或稍后回来查看。", queueText: "", canAutoRefresh: true };
+    return { progress: 45, stageText: "正在排队，等待进入 AI 生成队列", helperText: "已收到照片和风格，系统会按顺序处理生成任务。", queueText: "", canAutoRefresh: true };
   }
   if (order.status === "ready_to_generate") return { progress: 35, stageText: "已收到照片和风格，正在等待管理员开始生成", helperText: "我们会根据你选择的风格生成 AI 婚纱写真预览。", queueText: "前方可能还有其他订单，系统会按顺序处理。", canAutoRefresh: true };
   if (normalized === "pending_theme") return { progress: 10, stageText: "已上传照片，请选择喜欢的风格", helperText: "选择 2个风格后，即可支付试看费。", queueText: "", canAutoRefresh: false };
