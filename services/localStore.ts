@@ -181,7 +181,12 @@ export async function saveLocalSelection(orderId: string, assetIds: string[]) {
     const selected = new Set(assetIds.filter((id) => valid.has(id)));
     order.order_assets = order.order_assets.map((asset) => ({ ...asset, is_selected: asset.kind === "generated" && selected.has(asset.id) }));
     order.selected_count = selected.size;
-    order.selection_amount_cents = selected.size * 5990;
+    const unlockedSelected = order.order_assets.filter((asset) => asset.kind === "generated" && asset.is_unlocked && selected.has(asset.id)).length;
+    const newSelected = selected.size - unlockedSelected;
+    const totalFree = Math.floor(selected.size / 8);
+    const oldFree = Math.floor(unlockedSelected / 8);
+    const newFree = totalFree - oldFree;
+    order.selection_amount_cents = Math.max(0, newSelected - newFree) * 5990;
     order.status = selected.size > 0 ? "pending_final_payment" : "pending_selection";
     return order;
   });
@@ -199,6 +204,8 @@ export async function payLocalOrder(orderId: string, kind: "deposit" | "selectio
   return updateLocalOrder(orderId, (order) => {
     const amount = kind === "deposit" ? order.deposit_amount_cents : order.selection_amount_cents;
     if (amount <= 0) throw new Error("No payable amount");
+    const alreadyPaidSame = order.payments.some((p) => p.kind === kind && p.amount_cents === amount);
+    if (alreadyPaidSame) return order;
     const now = new Date().toISOString();
     order.payments.push({ id: randomUUID(), order_id: orderId, kind, status: "paid", amount_cents: amount, provider: "mock", provider_trade_no: tradeNo, paid_at: now, created_at: now });
     if (kind === "deposit") order.status = "ready_to_generate";

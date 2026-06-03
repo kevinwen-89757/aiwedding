@@ -2010,6 +2010,52 @@ main {
   min-width: 980px;
 }
 
+/* 促销横幅 */
+.promo-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 20px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, #fff9f0, #fff0e4);
+  border: 1px solid rgba(255, 180, 100, .35);
+  box-shadow: 0 8px 24px rgba(255, 150, 50, .08);
+  margin-bottom: 28px;
+  flex-wrap: wrap;
+}
+
+.promo-banner-text {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  color: #8a4a0f;
+}
+
+.promo-banner-hint {
+  font-size: 13px;
+  font-weight: 600;
+  color: #b8742e;
+}
+
+/* 已解锁徽标 */
+.selection-unlocked-badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: #07C160;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  box-shadow: 0 8px 20px rgba(7, 193, 96, .3);
+  pointer-events: none;
+}
+
 .manual-table pre {
   white-space: pre-wrap;
   min-width: 360px;

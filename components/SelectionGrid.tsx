@@ -23,7 +23,7 @@ function groupByTheme(assets: OrderAsset[]): ThemeGroup[] {
   return Array.from(map.values());
 }
 
-function AssetTile({ asset, selected, onToggle, onPreview }: { asset: OrderAsset; selected: boolean; onToggle: () => void; onPreview: () => void }) {
+function AssetTile({ asset, selected, isUnlocked, onToggle, onPreview }: { asset: OrderAsset; selected: boolean; isUnlocked: boolean; onToggle: () => void; onPreview: () => void }) {
   return (
     <article className={`photo-tile selection-photo-tile selection-photo-tile-${ratioKind(asset)}`}>
       <div
@@ -31,21 +31,27 @@ function AssetTile({ asset, selected, onToggle, onPreview }: { asset: OrderAsset
         style={{ aspectRatio: fixedAspectRatio(asset) ?? "3 / 4" }}
         role="button"
         tabIndex={0}
-        onClick={onToggle}
-        onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onToggle(); } }}
+        onClick={isUnlocked ? undefined : onToggle}
+        onKeyDown={(event) => { if (!isUnlocked && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onToggle(); } }}
         aria-pressed={selected}
         aria-label={`选择第 ${asset.sort_order} 张`}
       >
         <img src={previewUrl(asset)} alt={`带水印预览图 ${asset.sort_order}`} />
-        <span className="selection-hover-hint">{selected ? "已选中" : "点击选择这张"}</span>
+        {isUnlocked ? (
+          <span className="selection-unlocked-badge">已解锁</span>
+        ) : (
+          <>
+            <span className="selection-hover-hint">{selected ? "已选中" : "点击选择这张"}</span>
+            <button
+              className={`selection-check-button${selected ? " selected" : ""}`}
+              type="button"
+              onClick={(event) => { event.stopPropagation(); onToggle(); }}
+              aria-pressed={selected}
+              aria-label={`选择第 ${asset.sort_order} 张`}
+            >{selected ? "✓" : ""}</button>
+          </>
+        )}
         <span className="selection-photo-number">#{asset.sort_order}</span>
-        <button
-          className={`selection-check-button${selected ? " selected" : ""}`}
-          type="button"
-          onClick={(event) => { event.stopPropagation(); onToggle(); }}
-          aria-pressed={selected}
-          aria-label={`选择第 ${asset.sort_order} 张`}
-        >{selected ? "✓" : ""}</button>
         <button className="selection-preview-action" type="button" onClick={(event) => { event.stopPropagation(); onPreview(); }}>预览大图</button>
       </div>
     </article>
@@ -61,15 +67,19 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
   const [saving, setSaving] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<OrderAsset | null>(null);
   const [mounted, setMounted] = useState(false);
-  const total = useMemo(() => {
-    const base = selected.size * 5990;
-    const freeCount = Math.floor(selected.size / 8);
-    return Math.max(0, base - freeCount * 5990);
-  }, [selected]);
-  const freeCount = useMemo(() => Math.floor(selected.size / 8), [selected]);
+  const unlockedCount = useMemo(() => Array.from(selected).filter((id) => assets.find((a) => a.id === id)?.is_unlocked).length, [selected, assets]);
+  const newCount = selected.size - unlockedCount;
+  const totalFreeCount = useMemo(() => Math.floor(selected.size / 8), [selected]);
+  const oldFreeCount = useMemo(() => Math.floor(unlockedCount / 8), [unlockedCount]);
+  const newFreeCount = totalFreeCount - oldFreeCount;
+  const payableCount = Math.max(0, newCount - newFreeCount);
+  const payableAmount = payableCount * 5990;
   const depositDeduct = 990; // ¥9.9 试看费抵扣（分）
+  const finalAmount = Math.max(0, payableAmount - depositDeduct);
   const themeGroups = useMemo(() => groupByTheme(selectedAssets), [selectedAssets]);
   const recRows = useMemo(() => buildPhotoLayoutRows(recommendationAssets), [recommendationAssets]);
+  const promoRemaining = Math.max(0, 8 - (selected.size % 8));
+  const hasAnyUnlocked = assets.some((a) => a.is_unlocked);
   useEffect(() => { setMounted(true); }, []);
   useEffect(() => {
     if (!previewAsset) return;
@@ -99,6 +109,17 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
     if (response.ok) { router.push(`/orders/${orderId}/pay?kind=selection`); router.refresh(); }
   }
   return <>
+    <div className="promo-banner">
+      <span className="promo-banner-text">🎁 满 8 张免 1 张</span>
+      <span className="promo-banner-hint">
+        {selected.size >= 8
+          ? `已满足满8免1（共免 ${totalFreeCount} 张）${promoRemaining < 8 ? `，再选 ${promoRemaining} 张可再免1张` : ""}`
+          : `再选 ${promoRemaining} 张即可免 1 张`}
+      </span>
+    </div>
+    {hasAnyUnlocked ? (
+      <p className="muted" style={{ marginBottom: 16, fontSize: 14 }}>已解锁的照片无需再次付费，你可以继续挑选其他照片加入订单。</p>
+    ) : null}
     {themeGroups.map((group) => {
       const rows = buildPhotoLayoutRows(group.assets);
       return (
@@ -108,7 +129,7 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
             {rows.map((row) => (
               <div className={`selection-row selection-row-${row.kind}`} key={row.id}>
                 {row.assets.map((asset) => (
-                  <AssetTile key={asset.id} asset={asset} selected={selected.has(asset.id)} onToggle={() => toggle(asset.id)} onPreview={() => setPreviewAsset(asset)} />
+                  <AssetTile key={asset.id} asset={asset} selected={selected.has(asset.id)} isUnlocked={!!asset.is_unlocked} onToggle={() => toggle(asset.id)} onPreview={() => setPreviewAsset(asset)} />
                 ))}
               </div>
             ))}
@@ -159,16 +180,24 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
     ) : null}
     <div className="sticky-bar">
       <div>
-        <strong>{selected.size > 0 ? `已选 ${selected.size} 张` : "请选择喜欢的照片"}</strong>
-        {freeCount > 0 ? <span className="promo-badge">满8免{freeCount}张</span> : null}
+        <strong>
+          {selected.size > 0
+            ? `已选 ${selected.size} 张${unlockedCount > 0 ? `（含 ${unlockedCount} 张已解锁）` : ""}`
+            : "请选择喜欢的照片"}
+        </strong>
+        {totalFreeCount > 0 ? <span className="promo-badge">满8免{totalFreeCount}张</span> : null}
       </div>
       <div className="actions">
         <div className="price-breakdown">
-          <span className="pay-breakdown-row">正片：{formatCny(selected.size * 5990)}{selected.size >= 8 ? `（满8免${freeCount}张 -${formatCny(freeCount * 5990)}）` : ""}</span>
+          <span className="pay-breakdown-row">
+            正片：{formatCny(newCount * 5990)}
+            {totalFreeCount > 0 ? `（满8免${totalFreeCount}张，本次新增免${newFreeCount}张 -${formatCny(newFreeCount * 5990)}）` : ""}
+          </span>
+          {unlockedCount > 0 ? <span className="pay-breakdown-row">已解锁：{unlockedCount} 张（无需付费）</span> : null}
           <span className="pay-breakdown-row deduct-row">试看费抵扣：-{formatCny(depositDeduct)}</span>
-          <span className="pay-breakdown-total">实付：{formatCny(Math.max(0, total - depositDeduct))}</span>
+          <span className="pay-breakdown-total">实付：{formatCny(finalAmount)}</span>
         </div>
-        <button onClick={submit} disabled={saving || selected.size === 0}><LockKeyhole size={18} />{saving ? "保存中..." : selected.size > 0 ? `确认解锁` : "先选择想解锁的照片"}</button>
+        <button onClick={submit} disabled={saving || payableCount === 0}><LockKeyhole size={18} />{saving ? "保存中..." : payableCount > 0 ? `确认解锁` : "无可解锁的新照片"}</button>
       </div>
     </div>
     {mounted && previewAsset ? createPortal((
