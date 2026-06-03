@@ -4,3 +4,6 @@ node_modules
 storage
 .netlify
 deno.lock
+public/carousel
+public/demo/upload-sample-1.jpg
+public/demo/upload-sample-2.jpg
