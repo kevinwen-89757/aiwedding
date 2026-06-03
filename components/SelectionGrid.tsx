@@ -61,7 +61,12 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
   const [saving, setSaving] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<OrderAsset | null>(null);
   const [mounted, setMounted] = useState(false);
-  const total = useMemo(() => selected.size * 6000, [selected]);
+  const total = useMemo(() => {
+    const base = selected.size * 5990;
+    const freeCount = Math.floor(selected.size / 10);
+    return base - freeCount * 5990;
+  }, [selected]);
+  const freeCount = useMemo(() => Math.floor(selected.size / 10), [selected]);
   const themeGroups = useMemo(() => groupByTheme(selectedAssets), [selectedAssets]);
   const recRows = useMemo(() => buildPhotoLayoutRows(recommendationAssets), [recommendationAssets]);
   useEffect(() => { setMounted(true); }, []);
@@ -151,7 +156,19 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
         </div>
       </section>
     ) : null}
-    <div className="sticky-bar"><strong>{selected.size > 0 ? `已选 ${selected.size} 张` : "请选择喜欢的照片"}</strong><div className="actions"><strong>解锁无水印原图 {formatCny(total)}</strong><button onClick={submit} disabled={saving || selected.size === 0}><LockKeyhole size={18} />{saving ? "保存中..." : selected.size > 0 ? `确认解锁 ${selected.size} 张 · ${formatCny(total)}` : "先选择想解锁的照片"}</button></div></div>
+    <div className="sticky-bar">
+      <div>
+        <strong>{selected.size > 0 ? `已选 ${selected.size} 张` : "请选择喜欢的照片"}</strong>
+        {freeCount > 0 ? <span className="promo-badge">满10免{freeCount}张</span> : null}
+      </div>
+      <div className="actions">
+        <div className="price-breakdown">
+          <strong>解锁无水印原图 {formatCny(total)}</strong>
+          {selected.size > 0 && selected.size >= 10 ? <span className="deduct-tag">已减 ¥{(Math.floor(selected.size / 10) * 5990) / 100}</span> : null}
+        </div>
+        <button onClick={submit} disabled={saving || selected.size === 0}><LockKeyhole size={18} />{saving ? "保存中..." : selected.size > 0 ? `确认解锁 ${selected.size} 张 · ${formatCny(total)}` : "先选择想解锁的照片"}</button>
+      </div>
+    </div>
     {mounted && previewAsset ? createPortal((
       <div className="selection-lightbox" role="dialog" aria-modal="true" aria-label={`第 ${previewAsset.sort_order} 张带水印预览图`} onClick={() => setPreviewAsset(null)}>
         <button className="selection-lightbox-close" type="button" onClick={() => setPreviewAsset(null)} aria-label="关闭预览"><X size={22} /></button>

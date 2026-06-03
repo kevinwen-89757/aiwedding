@@ -174,7 +174,7 @@ export async function saveLocalSelection(orderId: string, assetIds: string[]) {
     const selected = new Set(assetIds.filter((id) => valid.has(id)));
     order.order_assets = order.order_assets.map((asset) => ({ ...asset, is_selected: asset.kind === "generated" && selected.has(asset.id) }));
     order.selected_count = selected.size;
-    order.selection_amount_cents = selected.size * 6000;
+    order.selection_amount_cents = selected.size * 5990;
     order.status = selected.size > 0 ? "pending_final_payment" : "pending_selection";
     return order;
   });

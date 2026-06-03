@@ -21,10 +21,16 @@ export default async function PayPage({ params, searchParams }: PageProps) {
         <h1>{isDeposit ? "支付试看费用" : "支付选片费用"}</h1>
         <p className="amount">应付金额：{formatCny(amount)}</p>
 
-        {isDeposit && (
+        {isDeposit ? (
           <p className="pay-deduct-hint">
-            试看费可在确认正片时全额抵扣
+            ¥9.9 试看费可在选购正片时全额抵扣
           </p>
+        ) : (
+          <div className="pay-breakdown">
+            <p className="pay-breakdown-item">正片费用：{formatCny(order.selection_amount_cents)}</p>
+            <p className="pay-breakdown-item pay-breakdown-deduct">试看费抵扣：<strong>-{formatCny(order.deposit_amount_cents)}</strong></p>
+            <p className="pay-breakdown-total">实付：{formatCny(Math.max(0, order.selection_amount_cents - order.deposit_amount_cents))}</p>
+          </div>
         )}
 
         <div className="pay-qr-wrap">
