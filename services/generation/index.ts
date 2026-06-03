@@ -233,7 +233,13 @@ function recoverLegacyApiJobs(order: LocalOrder) {
   if (!matches.length) return [];
   const plan = getOrderGenerationPlan(order);
   const now = new Date().toISOString();
-  return matches.map((match) => {
+  // 按 image_number 去重，只保留最后一个（最新）task_id
+  const latestByNumber = new Map<number, RegExpMatchArray>();
+  for (const m of matches) {
+    const num = Number.parseInt(m[1], 10);
+    latestByNumber.set(num, m);
+  }
+  return Array.from(latestByNumber.values()).map((match) => {
     const imageNumber = Number.parseInt(match[1], 10);
     const planItem = plan[imageNumber - 1];
     return {
@@ -402,6 +408,11 @@ async function saveCompletedApiJob(orderId: string, job: GenerationJob, imageUrl
   const freshOrder = await getLocalOrder(orderId);
   if (!freshOrder) return;
   if (hasAssetForTask(freshOrder, job.task_id)) return;
+  // 同 image_number 已存在则跳过（防止多轮恢复导致同一编号重复保存）
+  if (freshOrder.order_assets.some((a) => a.kind === "generated" && a.sort_order === job.image_number)) {
+    await appendApiProgress(orderId, [`图 ${job.image_number} 已有同编号资产，跳过重复保存。`]);
+    return;
+  }
   // 用 task_id 前 8 位做文件名，避免同 image_number 的不同任务互相覆盖
   const taskSuffix = job.task_id.replace(/^create-failed-/, "").slice(0, 8);
   await appendApiProgress(orderId, [`APIMart 返回图片 URL：${imageUrl}`, `图 ${job.image_number} 正在下载生成图。`]);
