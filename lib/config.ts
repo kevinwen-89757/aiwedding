@@ -12,7 +12,7 @@ export const appConfig = {
   apimartApiKey: process.env.APIMART_API_KEY,
   apimartBaseUrl: process.env.APIMART_BASE_URL ?? "https://api.apimart.ai",
   apimartModel: process.env.APIMART_MODEL ?? "gemini-3-pro-image-preview",
-  apimartResolution: process.env.APIMART_RESOLUTION ?? "1K",
+  apimartResolution: process.env.APIMART_RESOLUTION ?? "4K",
   apimartTimeoutMs: Number.parseInt(process.env.APIMART_TIMEOUT_MS ?? "300000", 10),
   generationTestLimit: process.env.GENERATION_TEST_LIMIT ? Number.parseInt(process.env.GENERATION_TEST_LIMIT, 10) : 0,
   adminToken: process.env.ADMIN_TOKEN ?? (process.env.NODE_ENV === "production" ? "" : "dev-admin-token")
