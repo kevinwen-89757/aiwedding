@@ -568,6 +568,17 @@ main {
 }
 
 /* 推荐风格首图模块 */
+.theme-selection-section {
+  margin-bottom: 48px;
+}
+
+.theme-selection-heading {
+  font-size: 20px;
+  font-weight: 600;
+  margin-bottom: 24px;
+  letter-spacing: -0.01em;
+}
+
 .recommendation-section {
   margin-top: 64px;
   padding-top: 48px;
