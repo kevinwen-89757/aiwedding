@@ -5,6 +5,11 @@ const nextConfig: NextConfig = {
   outputFileTracingExcludes: {
     "*": ["public/**/*.png"],
   },
+  api: {
+    bodyParser: {
+      sizeLimit: "10mb",
+    },
+  },
 };
 
 export default nextConfig;
