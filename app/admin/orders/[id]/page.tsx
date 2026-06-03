@@ -105,6 +105,7 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
         <div className="card">
           <h2>生成状态</h2>
           <p>模式：API 自动 / 人工</p>
+          <p>精度：{getGenerationRuntimeConfig(order).apimartResolution}</p>
           <p>计划：{generationPlan.length} 张</p>
           <p>已完成：{generatedAssetsCount} 张</p>
           <p>进行中：{activeGenerationJobs.length} 张</p>
