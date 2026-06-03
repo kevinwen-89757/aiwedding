@@ -101,6 +101,13 @@ async function writeStore(store: LocalStore) {
 function str(value: FormDataEntryValue | null) { return typeof value === "string" && value.trim() ? value.trim() : null; }
 
 export async function listLocalOrders() { return (await readStore()).orders.sort((a, b) => b.created_at.localeCompare(a.created_at)); }
+
+export async function findOrdersByCustomerName(name: string): Promise<LocalOrder[]> {
+  const all = await listLocalOrders();
+  const trimmed = name.trim().toLowerCase();
+  return all.filter((o) => o.customer_name?.toLowerCase().includes(trimmed));
+}
+
 export async function getLocalOrder(orderId: string) {
   if (isSupabaseStore()) {
     const order = await getSupabaseOrder(orderId);
