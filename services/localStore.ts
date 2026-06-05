@@ -186,7 +186,13 @@ export async function saveLocalSelection(orderId: string, assetIds: string[]) {
     const totalFree = Math.floor(selected.size / 10);
     const oldFree = Math.floor(unlockedSelected / 10);
     const newFree = totalFree - oldFree;
-    order.selection_amount_cents = Math.max(0, newSelected - newFree) * 5990;
+    let amount = Math.max(0, newSelected - newFree) * 5990;
+    // 试看费抵扣：仅在首次选片时生效（没有过 selection 支付记录）
+    const hasPriorSelectionPayment = order.payments.some((p) => p.kind === "selection" && p.status === "paid");
+    if (!hasPriorSelectionPayment && amount > 0) {
+      amount = Math.max(0, amount - 990);
+    }
+    order.selection_amount_cents = amount;
     order.status = selected.size > 0 ? "pending_final_payment" : "pending_selection";
     return order;
   });

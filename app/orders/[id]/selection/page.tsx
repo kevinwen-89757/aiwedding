@@ -28,7 +28,7 @@ export default async function SelectionPage({ params }: PageProps) {
           <Link className="button secondary" href={`/orders/${id}/status`}>返回订单状态</Link>
         </div>
       ) : (
-        <SelectionGrid orderId={id} assets={generatedAssets} />
+        <SelectionGrid orderId={id} assets={generatedAssets} hasPriorSelectionPayment={order.payments?.some((p) => p.kind === "selection" && p.status === "paid") ?? false} />
       )}
     </main>
   );

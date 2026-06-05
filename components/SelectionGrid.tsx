@@ -58,7 +58,7 @@ function AssetTile({ asset, selected, isUnlocked, onToggle, onPreview }: { asset
   );
 }
 
-export function SelectionGrid({ orderId, assets }: { orderId: string; assets: OrderAsset[] }) {
+export function SelectionGrid({ orderId, assets, hasPriorSelectionPayment }: { orderId: string; assets: OrderAsset[]; hasPriorSelectionPayment?: boolean }) {
   const router = useRouter();
   const uniqueAssets = assets.filter((a, i, arr) => arr.findIndex((x) => x.preview_path === a.preview_path) === i);
   const selectedAssets = uniqueAssets.filter((a) => a.generation_type !== "recommendation");
@@ -74,7 +74,8 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
   const newFreeCount = totalFreeCount - oldFreeCount;
   const payableCount = Math.max(0, newCount - newFreeCount);
   const payableAmount = payableCount * 5990;
-  const depositDeduct = 990; // ¥9.9 试看费抵扣（分）
+  const canUseDepositDeduct = !hasPriorSelectionPayment;
+  const depositDeduct = canUseDepositDeduct ? 990 : 0; // ¥9.9 试看费仅首次选片可抵扣
   const finalAmount = Math.max(0, payableAmount - depositDeduct);
   const themeGroups = useMemo(() => groupByTheme(selectedAssets), [selectedAssets]);
   const recRows = useMemo(() => buildPhotoLayoutRows(recommendationAssets), [recommendationAssets]);
@@ -194,7 +195,7 @@ export function SelectionGrid({ orderId, assets }: { orderId: string; assets: Or
             {totalFreeCount > 0 ? `（满10免${totalFreeCount}张，本次新增免${newFreeCount}张 -${formatCny(newFreeCount * 5990)}）` : ""}
           </span>
           {unlockedCount > 0 ? <span className="pay-breakdown-row">已解锁：{unlockedCount} 张（无需付费）</span> : null}
-          <span className="pay-breakdown-row deduct-row">试看费抵扣：-{formatCny(depositDeduct)}</span>
+          {canUseDepositDeduct ? <span className="pay-breakdown-row deduct-row">试看费抵扣：-{formatCny(depositDeduct)}</span> : null}
           <span className="pay-breakdown-total">实付：{formatCny(finalAmount)}</span>
         </div>
         <button onClick={submit} disabled={saving || payableCount === 0}><LockKeyhole size={18} />{saving ? "保存中..." : payableCount > 0 ? `确认解锁` : "无可解锁的新照片"}</button>
