@@ -95,6 +95,7 @@ export type Order = {
   generation_jobs?: GenerationJob[];
   admin_note: string | null;
   reject_reason: string | null;
+  metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;
 };

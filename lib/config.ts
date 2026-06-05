@@ -16,7 +16,12 @@ export const appConfig = {
   apimartResolution: "4K",
   apimartTimeoutMs: Number.parseInt(process.env.APIMART_TIMEOUT_MS ?? "300000", 10),
   generationTestLimit: process.env.GENERATION_TEST_LIMIT ? Number.parseInt(process.env.GENERATION_TEST_LIMIT, 10) : 0,
-  adminToken: process.env.ADMIN_TOKEN ?? (process.env.NODE_ENV === "production" ? "" : "dev-admin-token")
+  adminToken: process.env.ADMIN_TOKEN ?? (process.env.NODE_ENV === "production" ? "" : "dev-admin-token"),
+  wechatPay: {
+    appId: process.env.WECHAT_PAY_APPID ?? "",
+    mchId: process.env.WECHAT_PAY_MCHID ?? "",
+    apiKey: process.env.WECHAT_PAY_API_KEY ?? "",
+  },
 };
 
 export function assertProductionConfig() {

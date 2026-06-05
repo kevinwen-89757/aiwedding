@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { formatCny } from "@/lib/money";
 import { getLocalOrder } from "@/services/localStore";
+import { WeChatPayPanel } from "@/components/WeChatPayPanel";
 
 type PageProps = { params: Promise<{ id: string }>; searchParams: Promise<{ kind?: string }> };
 
@@ -33,19 +34,9 @@ export default async function PayPage({ params, searchParams }: PageProps) {
           </div>
         )}
 
-        <div className="pay-qr-wrap">
-          <img
-            src={isDeposit ? "/wxpay-deposit.jpg" : "/wxpay-selection.jpg"}
-            alt="微信支付二维码"
-            className="pay-qr-img"
-          />
-          <p className="pay-qr-hint">
-            请扫码支付，并在转账备注中填写订单号后 8 位：<strong>{orderShort}</strong>
-          </p>
-        </div>
+        <WeChatPayPanel orderId={id} kind={paymentKind} orderShort={orderShort} />
 
         <div className="actions">
-          <Link className="button" href={`/orders/${id}/status`}>我已完成支付</Link>
           <Link className="button secondary" href={`/orders/${id}/status`}>返回订单</Link>
         </div>
       </div>
