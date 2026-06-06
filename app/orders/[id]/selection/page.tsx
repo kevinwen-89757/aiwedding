@@ -21,6 +21,9 @@ export default async function SelectionPage({ params }: PageProps) {
           <span>解锁无水印原图</span>
           <span>无水印保存</span>
         </div>
+        <div className="info-box" style={{marginTop:16,background:"rgba(59,130,246,0.08)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#3b82f6"}}>
+          <strong>提示：</strong>预览图仅作效果参考，带有水印；付费后获得可商用/可打印的 4K 高清无水印原图。
+        </div>
       </section>
       {generatedAssets.length === 0 ? (
         <div className="card">
