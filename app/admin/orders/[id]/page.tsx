@@ -2,6 +2,7 @@ import Link from "next/link";
 import { cookies } from "next/headers";
 import { AdminConfirmButtons } from "@/components/AdminConfirmButtons";
 import { CopyOrderButton } from "@/components/CopyOrderButton";
+import { DeleteOrderButton } from "@/components/DeleteOrderButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { isAdminToken } from "@/lib/admin";
 import { formatCny } from "@/lib/money";
@@ -72,6 +73,7 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
         <div className="actions">
           <Link className="button secondary" href={`/orders/${id}/status`}>用户状态页</Link>
           <CopyOrderButton orderId={order.id} />
+          <DeleteOrderButton orderId={order.id} orderShort={order.id.slice(0, 8)} variant="detail" />
         </div>
       </section>
 

@@ -42,6 +42,12 @@ export async function saveSupabaseOrder(order: LocalOrder) {
   if (error) throw new Error(`Supabase orders 写入失败：${error.message}`);
 }
 
+export async function deleteSupabaseOrder(orderId: string) {
+  const supabase = getSupabaseAdmin();
+  const { error } = await supabase.from("orders").delete().eq("id", orderId);
+  if (error) throw new Error(`Supabase order delete failed: ${error.message}`);
+}
+
 export async function assertSupabaseStoreReady() {
   const supabase = getSupabaseAdmin();
   const { error } = await supabase.from("orders").select("id").limit(1);

@@ -4,7 +4,7 @@ import { randomUUID } from "node:crypto";
 import { appConfig } from "@/lib/config";
 import type { Order, OrderAsset, OrderStatus } from "@/lib/types";
 import { absoluteStoragePath } from "@/services/storage";
-import { assertSupabaseStoreReady, getSupabaseOrder, listSupabaseOrders, saveSupabaseOrder } from "@/services/supabaseStore";
+import { assertSupabaseStoreReady, deleteSupabaseOrder, getSupabaseOrder, listSupabaseOrders, saveSupabaseOrder } from "@/services/supabaseStore";
 
 type LocalPayment = { id: string; order_id: string; kind: "deposit" | "selection"; status: "paid"; amount_cents: number; provider: "mock"; provider_trade_no: string; paid_at: string; created_at: string };
 export type LocalOrder = Order & { order_assets: OrderAsset[]; payments: LocalPayment[] };
@@ -145,6 +145,17 @@ export async function updateLocalOrder(orderId: string, updater: (order: LocalOr
   await writeStore(store);
   return updated;
 }
+
+export async function deleteLocalOrder(orderId: string) {
+  if (isSupabaseStore()) {
+    await deleteSupabaseOrder(orderId);
+    return;
+  }
+  const store = await readStore();
+  store.orders = store.orders.filter((order) => order.id !== orderId);
+  await writeStore(store);
+}
+
 export async function addLocalAsset(orderId: string, input: Omit<OrderAsset, "id" | "order_id" | "created_at">) {
   return updateLocalOrder(orderId, (order) => {
     order.order_assets.push({ ...input, id: randomUUID(), order_id: orderId, created_at: new Date().toISOString() });

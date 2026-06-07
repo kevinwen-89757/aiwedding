@@ -1,7 +1,16 @@
 import { NextResponse } from "next/server";
 import { adminUnauthorized } from "@/lib/admin";
-import { confirmLocalPayment, getLocalOrder, updateLocalOrderStatus } from "@/services/localStore";
+import { confirmLocalPayment, deleteLocalOrder, getLocalOrder, updateLocalOrderStatus } from "@/services/localStore";
 type Context = { params: Promise<{ id: string }> };
+export async function DELETE(request: Request, context: Context) {
+  const unauthorized = adminUnauthorized(request);
+  if (unauthorized) return unauthorized;
+  const { id } = await context.params;
+  const current = await getLocalOrder(id);
+  if (!current) return NextResponse.json({ error: "Order not found" }, { status: 404 });
+  await deleteLocalOrder(id);
+  return NextResponse.json({ ok: true });
+}
 export async function PATCH(request: Request, context: Context) {
   const unauthorized = adminUnauthorized(request);
   if (unauthorized) return unauthorized;
