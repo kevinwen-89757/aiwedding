@@ -327,6 +327,24 @@ export async function startApiGeneration(order: LocalOrder) {
   const jobs: GenerationJob[] = [];
   for (let index = 0; index < plan.length; index += 1) {
     const item = plan[index];
+    // Guard: 跳过空 prompt，防止 APIMart 返回 400
+    if (!item.rawPrompt || item.rawPrompt.trim().length === 0) {
+      const message = `图 ${item.imageNumber} prompt 为空，已跳过。请检查「${item.themeName}」风格的「${item.promptName}」prompt 是否已填写。`;
+      console.error("[apimart] empty prompt skipped", { orderId: order.id, imageNumber: item.imageNumber, themeName: item.themeName, promptName: item.promptName });
+      const job = buildGenerationJob(item, index, {
+        taskId: `empty-prompt-${order.id}-${item.imageNumber}`,
+        status: "failed",
+        error: message
+      });
+      jobs.push(job);
+      await updateLocalOrder(order.id, (current) => ({
+        ...current,
+        status: "generating",
+        generation_jobs: jobs,
+        admin_note: appendApiProgressNoteText(current.admin_note, [message])
+      }));
+      continue;
+    }
     await updateLocalOrder(order.id, (current) => ({
       ...current,
       status: "generating",

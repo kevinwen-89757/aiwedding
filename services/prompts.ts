@@ -999,8 +999,32 @@ Full body shot from a side angle. The couple walks slowly into the golden mist, 
     prompts: [
       {
         name: "A",
-        prompt: ``,
-        rawPrompt: ``,
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：
+
+核心任务：超高清竖构图（3:4）。江南园林双人合影，低饱和灰绿调，柔和逆光，东方雅致与浪漫氛围交织。
+
+一、人物绑定（最高优先级）
+
+人物：严格使用上传的肖像。男性为新郎，女性为新娘。男性身形挺拔，颈部舒展，严禁佝偻。女性形体纤细优雅，肩颈舒展。
+
+肖像保真：100%沿用原图五官、脸型、肤色，禁止修改。新郎眼神清澈有神，严禁小眼睛或日本脸特征。新娘面容温婉，妆容精致。
+
+二、造型细节（与本风格全套保持统一）
+
+新娘：黑色低位发髻，蕾丝长头纱，象牙白法式鱼尾婚纱，珍珠垂坠耳环，正红色丝绒唇妆，皮肤纹理真实哑光。
+
+新郎：黑色短背头，黑色燕尾服礼服，羊毛纤维纹理清晰，白色衬衫，黑色领结，妆容干净自然哑光。
+
+三、场景与画质
+
+场景：江南园林白墙黛瓦、廊桥水榭与雕花木窗。低饱和灰绿调，柔和逆光，无高光死白，保留细节。
+
+光影与画质：自然柔和逆光，面部温润哑光，坚决不能泛油光（matte finish only）。Negative Prompt: no oily skin, no overexposure, no small eyes for groom, no slouching, no bright green, no blurred face, no modern buildings.
+
+四、分镜动作
+
+Medium shot. The bride and groom stand together on a traditional stone bridge over a calm pond, the groom's arm gently around the bride's waist. The bride leans her head slightly on the groom's shoulder, both looking towards the lens with warm, happy smiles. Soft backlight creates a gentle halo around them. Intimate and poetic atmosphere. --ar 3:4`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清竖构图（3:4）。江南园林双人合影，低饱和灰绿调，柔和逆光，东方雅致与浪漫氛围交织。 一、人物绑定（最高优先级） 人物：严格使用上传的肖像。男性为新郎，女性为新娘。男性身形挺拔，颈部舒展，严禁佝偻。女性形体纤细优雅，肩颈舒展。 肖像保真：100%沿用原图五官、脸型、肤色，禁止修改。新郎眼神清澈有神，严禁小眼睛或日本脸特征。新娘面容温婉，妆容精致。 二、造型细节（与本风格全套保持统一） 新娘：黑色低位发髻，蕾丝长头纱，象牙白法式鱼尾婚纱，珍珠垂坠耳环，正红色丝绒唇妆，皮肤纹理真实哑光。 新郎：黑色短背头，黑色燕尾服礼服，羊毛纤维纹理清晰，白色衬衫，黑色领结，妆容干净自然哑光。 三、场景与画质 场景：江南园林白墙黛瓦、廊桥水榭与雕花木窗。低饱和灰绿调，柔和逆光，无高光死白，保留细节。 光影与画质：自然柔和逆光，面部温润哑光，坚决不能泛油光（matte finish only）。Negative Prompt: no oily skin, no overexposure, no small eyes for groom, no slouching, no bright green, no blurred face, no modern buildings. 四、分镜动作 Medium shot. The bride and groom stand together on a traditional stone bridge over a calm pond, the groom's arm gently around the bride's waist. The bride leans her head slightly on the groom's shoulder, both looking towards the lens with warm, happy smiles. Soft backlight creates a gentle halo around them. Intimate and poetic atmosphere. --ar 3:4`,
         aspectRatio: "3:4",
         scene: "江南园林",
         pose: "A",
