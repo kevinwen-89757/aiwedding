@@ -194,19 +194,49 @@ export function UploadForm() {
       </label>
     </div>
     <div className="photo-type-section" style={{ marginBottom: 20, padding: "14px 16px", background: "#f8f6f3", borderRadius: 10, border: "1px solid #e8e3dc" }}>
-      <p className="field-label" style={{ marginBottom: 10 }}>照片类型 <RequiredMark /></p>
-      <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14 }}>
-          <input type="radio" name="photoType" value="id_photo" checked={photoType === "id_photo"} onChange={() => setPhotoType("id_photo")} />
-          <span>证件照（推荐，效果最佳）</span>
+      <p className="field-label" style={{ marginBottom: 12 }}>照片类型 <RequiredMark /></p>
+      <div style={{ display: "flex", gap: 12 }}>
+        <label
+          onClick={() => setPhotoType("id_photo")}
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            cursor: "pointer",
+            padding: "12px 16px",
+            borderRadius: 10,
+            border: `2px solid ${photoType === "id_photo" ? "#a0845c" : "#ddd5c9"}`,
+            background: photoType === "id_photo" ? "#faf7f2" : "#fff",
+            transition: "all 0.15s ease",
+            userSelect: "none",
+          }}
+        >
+          <input type="radio" name="photoType" value="id_photo" checked={photoType === "id_photo"} onChange={() => setPhotoType("id_photo")} style={{ accentColor: "#a0845c", width: 18, height: 18, flexShrink: 0 }} />
+          <span style={{ fontSize: 14, lineHeight: 1.5, color: "#333" }}>证件照<span style={{ fontSize: 12, color: "#888", marginLeft: 4 }}>（推荐，效果最佳）</span></span>
         </label>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14 }}>
-          <input type="radio" name="photoType" value="casual_photo" checked={photoType === "casual_photo"} onChange={() => setPhotoType("casual_photo")} />
-          <span>生活照 / 自拍照</span>
+        <label
+          onClick={() => setPhotoType("casual_photo")}
+          style={{
+            flex: 1,
+            display: "flex",
+            alignItems: "center",
+            gap: 10,
+            cursor: "pointer",
+            padding: "12px 16px",
+            borderRadius: 10,
+            border: `2px solid ${photoType === "casual_photo" ? "#a0845c" : "#ddd5c9"}`,
+            background: photoType === "casual_photo" ? "#faf7f2" : "#fff",
+            transition: "all 0.15s ease",
+            userSelect: "none",
+          }}
+        >
+          <input type="radio" name="photoType" value="casual_photo" checked={photoType === "casual_photo"} onChange={() => setPhotoType("casual_photo")} style={{ accentColor: "#a0845c", width: 18, height: 18, flexShrink: 0 }} />
+          <span style={{ fontSize: 14, lineHeight: 1.5, color: "#333" }}>生活照 / 自拍照</span>
         </label>
       </div>
       {photoType === "casual_photo" ? (
-        <div style={{ marginTop: 10, padding: "10px 12px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 8, fontSize: 13, color: "#b45309" }}>
+        <div style={{ marginTop: 12, padding: "10px 12px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 8, fontSize: 13, color: "#b45309", lineHeight: 1.6 }}>
           <strong>提示：</strong>生活照/自拍照受光线、角度、表情等影响，生成效果可能不如证件照理想。
           <br />
           如手边有<strong>高清证件照</strong>，强烈建议更换为证件照上传，以获得最佳生成质感。
