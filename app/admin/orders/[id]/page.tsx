@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { AdminConfirmButtons } from "@/components/AdminConfirmButtons";
+import { AdminOrderActions } from "@/components/AdminOrderActions";
 import { CopyOrderButton } from "@/components/CopyOrderButton";
 import { DeleteOrderButton } from "@/components/DeleteOrderButton";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -122,6 +123,16 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
             </details>
           )}
         </div>
+
+        <AdminOrderActions
+          orderId={order.id}
+          hasGenerated={generatedAssetsCount > 0}
+          status={order.status}
+          hasThemes={Boolean(order.selected_theme_ids?.length)}
+          adminNote={order.admin_note}
+          updatedAt={order.updated_at}
+          hasActiveGenerationTasks={activeGenerationJobs.length > 0}
+        />
       </section>
 
       <section className="section">
