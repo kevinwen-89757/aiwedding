@@ -25,6 +25,11 @@ export function AdminConfirmButtons({ orderId, status }: { orderId: string; stat
     setBusy(null);
     if (res.ok) { router.refresh(); return; }
     const err = await res.json().catch(() => ({}));
+    if (res.status === 409) {
+      // 可能是状态已变（如自动触发已开始），刷新页面即可
+      router.refresh();
+      return;
+    }
     alert("生成启动失败：" + (err.error || "未知错误"));
   }
 

@@ -35,7 +35,7 @@ async function uploadSupabaseObject(relativePath: string, buffer: Buffer, mimeTy
 
 export async function saveUpload(file: File, orderId: string, role?: "bride" | "groom"): Promise<StoredFile> {
   if (!allowedMimeTypes.has(file.type)) throw new Error("Only JPEG, PNG, and WEBP images are supported.");
-  if (file.size > 10 * 1024 * 1024) throw new Error("Image must be smaller than 10MB.");
+  if (file.size > 15 * 1024 * 1024) throw new Error("Image must be smaller than 15MB.");
   const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
   const relativePath = isSupabaseStorage()
     ? `orders/${orderId}/uploads/${role ?? randomUUID()}${ext}`
