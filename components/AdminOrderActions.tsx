@@ -9,6 +9,8 @@ export function AdminOrderActions({ orderId, hasGenerated, status, hasThemes, ad
   const [error, setError] = useState("");
   const [adminNoteValue, setAdminNoteValue] = useState("");
   const [rejectReason, setRejectReason] = useState("");
+  const [wmText, setWmText] = useState("aiwedding.space");
+  const [wmOpacity, setWmOpacity] = useState(0.4);
   const hasActiveTask = hasActiveGenerationTasks || Boolean(generationNote?.match(/task_id|任务轮询中|等待后续查询/));
   const isStaleGenerating = status === "generating" && !hasGenerated && updatedAt ? Date.now() - new Date(updatedAt).getTime() > 10 * 60 * 1000 : false;
   const canStartGeneration = status === "ready_to_generate" || status === "generation_failed" || status === "failed" || (status === "generating" && (isStaleGenerating || hasActiveTask));
@@ -59,10 +61,12 @@ export function AdminOrderActions({ orderId, hasGenerated, status, hasThemes, ad
     setBusy("");
   }
   async function regenerateWatermarks() {
-    const ok = confirm("确定要重新生成水印吗？\n\n这会用当前水印设置（aiwedding.space / 40%透明度）重新生成所有预览图。\n原图不会被修改。");
+    const text = wmText.trim() || "aiwedding.space";
+    const opacity = Math.max(0, Math.min(1, Number(wmOpacity) || 0.4));
+    const ok = confirm(`确定要重新生成水印吗？\n\n文案：${text}\n透明度：${Math.round(opacity * 100)}%\n\n这会重新生成所有预览图，原图不会被修改。`);
     if (!ok) return;
     setBusy("regen_watermark"); setError("");
-    const response = await fetch(`/api/admin/orders/${orderId}/regenerate-watermarks`, { method: "POST" });
+    const response = await fetch(`/api/admin/orders/${orderId}/regenerate-watermarks`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text, opacity }) });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       setError(body.error ?? "水印更新失败");

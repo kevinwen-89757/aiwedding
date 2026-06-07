@@ -791,7 +791,7 @@ export async function pollIdPhotoTasks(orderId: string) {
 }
 
 /** Re-generate watermark previews for all generated assets in an order (uses current watermark settings) */
-export async function regenerateOrderWatermarks(orderId: string): Promise<{ updated: number; total: number; errors: string[] }> {
+export async function regenerateOrderWatermarks(orderId: string, options?: import("@/services/watermark").WatermarkOptions): Promise<{ updated: number; total: number; errors: string[] }> {
   const order = await getLocalOrder(orderId);
   if (!order) throw new Error("Order not found");
   const assets = order.order_assets.filter((a) => a.kind === "generated" && a.original_path && a.preview_path);
@@ -801,7 +801,7 @@ export async function regenerateOrderWatermarks(orderId: string): Promise<{ upda
   for (const asset of assets) {
     try {
       const originalBuffer = await readStoredFile(asset.original_path!);
-      const newPreviewBuffer = await createWatermarkedPreviewBuffer(originalBuffer);
+      const newPreviewBuffer = await createWatermarkedPreviewBuffer(originalBuffer, options);
       await overwriteStoredBuffer(asset.preview_path!, newPreviewBuffer);
       updated += 1;
     } catch (err) {
@@ -809,9 +809,10 @@ export async function regenerateOrderWatermarks(orderId: string): Promise<{ upda
     }
   }
   // Log to admin_note
+  const optLabel = options ? ` (文案="${options.text ?? "默认"}", 透明度=${options.opacity ?? 0.4})` : "";
   await updateLocalOrder(orderId, (current) => {
     const notePrefix = current.admin_note ? current.admin_note + "\n" : "";
-    return { ...current, admin_note: `${notePrefix}[${new Date().toISOString()}] 水印批量更新：${updated}/${assets.length} 张成功${errors.length ? `，失败：${errors.join("; ")}` : ""}` };
+    return { ...current, admin_note: `${notePrefix}[${new Date().toISOString()}] 水印批量更新${optLabel}：${updated}/${assets.length} 张成功${errors.length ? `，失败：${errors.join("; ")}` : ""}` };
   });
   return { updated, total: assets.length, errors };
 }
