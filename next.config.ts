@@ -3,13 +3,8 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   serverExternalPackages: ["sharp"],
   outputFileTracingExcludes: {
-    "*": ["public/**/*.png"],
+    "*": ["public/demo/**/*", "public/carousel/**/*"],
   },
-  api: {
-    bodyParser: {
-      sizeLimit: "15mb",
-    },
-  },
-};
+};;
 
 export default nextConfig;
