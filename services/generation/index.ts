@@ -296,6 +296,12 @@ export async function startApiGeneration(order: LocalOrder) {
 
   const brideReference = await readStoredFile(bride.original_path);
   const groomReference = await readStoredFile(groom.original_path);
+  console.log("[start-generation] reference photos loaded", {
+    brideSize: `${(brideReference.length / 1024).toFixed(0)}KB`,
+    groomSize: `${(groomReference.length / 1024).toFixed(0)}KB`,
+    brideMime: bride.mime_type,
+    groomMime: groom.mime_type
+  });
   const plan = getEffectiveOrderGenerationPlan(order);
   if (!plan.length) throw new Error("没有可执行的生成计划。");
   const runtimeConfig = getGenerationRuntimeConfig(order);
@@ -315,6 +321,7 @@ export async function startApiGeneration(order: LocalOrder) {
   });
   await updateLocalOrderStatus(order.id, "generating", { admin_note: apiProgressNote([`新娘正脸照已传到 APIMart：${brideImageUrl}`, "准备上传新郎正脸照。"]) });
 
+  console.log("[start-generation] 开始上传新郎照片...", { groomSize: `${(groomReference.length / 1024).toFixed(0)}KB` });
   const groomImageUrl = await apimartUploadImage({
     buffer: groomReference,
     mimeType: groom.mime_type,

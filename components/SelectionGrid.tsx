@@ -41,7 +41,7 @@ function AssetTile({ asset, selected, isUnlocked, onToggle, onPreview }: { asset
           <span className="selection-unlocked-badge">已解锁</span>
         ) : (
           <>
-            <span className="selection-hover-hint">{selected ? "已选中" : "点击选择这张"}</span>
+            <span className="selection-hover-hint">{selected ? "已选中" : "解锁高清无水印"}</span>
             <button
               className={`selection-check-button${selected ? " selected" : ""}`}
               type="button"

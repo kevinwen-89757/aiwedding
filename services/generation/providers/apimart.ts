@@ -142,11 +142,25 @@ export async function apimartUploadImage(input: { buffer: Buffer; mimeType: stri
   bytes.set(input.buffer);
   form.append("file", new Blob([bytes], { type: input.mimeType }), path.basename(filename));
 
-  const response = await fetch(`${baseUrl()}/v1/uploads/images`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey()}` },
-    body: form
-  });
+  // 60秒超时，防止 APIMart 上传挂起导致 Vercel 函数被杀
+  const controller = new AbortController();
+  const uploadTimeout = setTimeout(() => controller.abort(), 60000);
+  let response: Response;
+  try {
+    response = await fetch(`${baseUrl()}/v1/uploads/images`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey()}` },
+      body: form,
+      signal: controller.signal
+    });
+  } catch (err) {
+    if (err instanceof DOMException && err.name === "AbortError") {
+      throw new Error(`APIMart 上传照片超时（>60s），文件名：${filename}，大小：${(input.buffer.length / 1024).toFixed(0)}KB`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(uploadTimeout);
+  }
   const json = await readJson(response);
   if (!response.ok) throw new Error(failureFromJson(json, `APIMart 上传用户照片失败，HTTP ${response.status}`));
   const url = extractUploadUrl(json);
