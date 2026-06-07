@@ -66,8 +66,8 @@ export function AdminOrdersTable({ orders }: { orders: OrderRow[] }) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 8 }}>
-        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", userSelect: "none" }}>
-          <input type="checkbox" checked={allSelected} ref={(el) => { if (el) el.indeterminate = someSelected; }} onChange={toggleSelectAll} />
+        <label style={{ display: "inline-flex", alignItems: "center", gap: 8, fontSize: 14, cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" }}>
+          <input type="checkbox" checked={allSelected} ref={(el) => { if (el) el.indeterminate = someSelected; }} onChange={toggleSelectAll} style={{ flexShrink: 0, width: 16, height: 16, accentColor: "#a0845c" }} />
           <span>全选（共 {orders.length} 个订单）</span>
         </label>
         {selected.size > 0 && (

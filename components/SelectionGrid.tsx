@@ -150,28 +150,25 @@ export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectio
   const hasIdPhotos = idPhotos.length > 0;
 
   return <>
-    {hasIdPhotos ? (
-      <div className="id-photo-section" style={{ marginBottom: 24, padding: "16px 20px", background: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0", display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
-        <div style={{ flex: 1, minWidth: 200 }}>
-          <h3 style={{ margin: "0 0 8px", fontSize: 15, fontWeight: 600, color: "#166534" }}>🎁 赠送高清证件照</h3>
-          <p style={{ margin: 0, fontSize: 13, color: "#15803d" }}>您上传的是生活照，我们已自动为您优化生成高清证件照，可直接下载使用。</p>
-        </div>
-        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+    <div style={{ marginBottom: 20, display: "flex", justifyContent: "flex-end", gap: 12 }}>
+      {hasIdPhotos ? (
+        <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 14px", background: "#fafaf8", borderRadius: 10, border: "1px solid #e5e0d8" }}>
+          <span style={{ fontSize: 12, color: "#888", whiteSpace: "nowrap" }}>生成底图</span>
           {idPhotos.map((asset) => (
-            <a key={asset.id} href={`/api/download/${asset.id}`} download className="id-photo-card" style={{ display: "block", textDecoration: "none", textAlign: "center" }}>
-              <div style={{ width: 80, height: 106, borderRadius: 8, overflow: "hidden", border: "2px solid #22c55e", background: "#fff" }}>
-                <img src={previewUrl(asset)} alt={`${asset.person_role === "bride" ? "新娘" : "新郎"}证件照`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+            <div key={asset.id} style={{ textAlign: "center" }}>
+              <div style={{ width: 56, height: 74, borderRadius: 6, overflow: "hidden", border: "1px solid #ddd", background: "#fff" }}>
+                <img src={previewUrl(asset)} alt={`${asset.person_role === "bride" ? "新娘" : "新郎"}底图`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
               </div>
-              <span style={{ fontSize: 12, color: "#166534", marginTop: 6, display: "block" }}>{asset.person_role === "bride" ? "新娘证件照" : "新郎证件照"} ↓</span>
-            </a>
+              <span style={{ fontSize: 11, color: "#999", marginTop: 3, display: "block" }}>{asset.person_role === "bride" ? "新娘" : "新郎"}</span>
+            </div>
           ))}
         </div>
-      </div>
-    ) : idPhotoPolling ? (
-      <div style={{ marginBottom: 24, padding: "12px 16px", background: "#fefce8", borderRadius: 10, border: "1px solid #fde047", fontSize: 13, color: "#a16207" }}>
-        ⏳ {idPhotoMessage || "证件照生成中，请稍候…"}
-      </div>
-    ) : null}
+      ) : idPhotoPolling ? (
+        <div style={{ padding: "8px 14px", background: "#fffbeb", borderRadius: 8, border: "1px solid #fde68a", fontSize: 12, color: "#b45309", whiteSpace: "nowrap" }}>
+          ⏳ {idPhotoMessage || "证件照底图生成中…"}
+        </div>
+      ) : null}
+    </div>
     <div className="promo-banner">
       <span className="promo-banner-text">🎁 满 10 张免 1 张</span>
       <span className="promo-banner-hint">

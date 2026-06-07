@@ -46,11 +46,19 @@ export function getOrderGenerationPlan(order: Pick<LocalOrder, "selected_theme_i
   }));
 }
 
-export function getReferenceUploadAssets(order: Pick<LocalOrder, "order_assets">) {
+export function getReferenceUploadAssets(order: Pick<LocalOrder, "order_assets" | "id_photo_assets">) {
+  // 优先使用已生成的证件照底图（生活照转证件照后的结果）
+  if (order.id_photo_assets?.bride || order.id_photo_assets?.groom) {
+    return {
+      bride: order.id_photo_assets.bride ?? null,
+      groom: order.id_photo_assets.groom ?? null,
+      primary: order.id_photo_assets.bride ?? order.id_photo_assets.groom ?? null
+    };
+  }
+  // 回退到原始上传照片
   const uploads = order.order_assets.filter((asset) => asset.kind === "upload");
   const bride = uploads.find((asset) => asset.person_role === "bride") ?? uploads[0] ?? null;
   const groom = uploads.find((asset) => asset.person_role === "groom") ?? uploads.find((asset) => asset.id !== bride?.id) ?? null;
-  // Future API providers should send both bride and groom reference images with rawPrompt unchanged.
   return { bride, groom, primary: bride ?? groom ?? null };
 }
 
