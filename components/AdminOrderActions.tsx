@@ -77,7 +77,18 @@ export function AdminOrderActions({ orderId, hasGenerated, status, hasThemes, ad
     }
     setBusy("");
   }
-  return <div className="card"><h2>后台操作</h2>{!hasThemes ? <div className="error-box">当前订单未选择风格，请先让用户选择风格后再生成。</div> : null}<label>管理备注<textarea value={adminNoteValue} onChange={(event)=>setAdminNoteValue(event.target.value)} rows={3} /></label><label>作废原因<textarea value={rejectReason} onChange={(event)=>setRejectReason(event.target.value)} rows={3} /></label>{error ? <div className="error-box">{error}</div> : null}<div className="actions"><button className="secondary" onClick={regenerateWatermarks} disabled={!!busy || !hasGenerated} title="用当前水印设置重新生成所有预览图">
+  return <div className="card"><h2>后台操作</h2>{!hasThemes ? <div className="error-box">当前订单未选择风格，请先让用户选择风格后再生成。</div> : null}<label>管理备注<textarea value={adminNoteValue} onChange={(event)=>setAdminNoteValue(event.target.value)} rows={3} /></label><label>作废原因<textarea value={rejectReason} onChange={(event)=>setRejectReason(event.target.value)} rows={3} /></label>{error ? <div className="error-box">{error}</div> : null}
+      <div style={{ display: "flex", gap: 12, alignItems: "flex-end", flexWrap: "wrap", marginBottom: 8, padding: 12, background: "#f8f9fa", borderRadius: 8, border: "1px solid #e5e7eb" }}>
+        <label style={{ flex: "1 1 160px", minWidth: 140 }}>
+          <span style={{ fontSize: 12, color: "#666", display: "block", marginBottom: 4 }}>水印文案</span>
+          <input type="text" value={wmText} onChange={(e) => setWmText(e.target.value)} placeholder="aiwedding.space" style={{ width: "100%", padding: "6px 10px", borderRadius: 6, border: "1px solid #ccc", fontSize: 14, boxSizing: "border-box" }} />
+        </label>
+        <label style={{ flex: "0 0 auto", minWidth: 120 }}>
+          <span style={{ fontSize: 12, color: "#666", display: "block", marginBottom: 4 }}>透明度 ({Math.round(Number(wmOpacity) * 100)}%)</span>
+          <input type="range" min="0.05" max="1" step="0.05" value={wmOpacity} onChange={(e) => setWmOpacity(Number(e.target.value))} style={{ width: 120, verticalAlign: "middle" }} />
+        </label>
+      </div>
+      <div className="actions"><button className="secondary" onClick={regenerateWatermarks} disabled={!!busy || !hasGenerated} title={`用当前设置（${wmText.trim() || "默认"} / ${Math.round(Number(wmOpacity) * 100)}%透明度）重新生成所有预览图`}>
           <Droplets size={18} />{busy === "regen_watermark" ? "更新中..." : "更新水印"}
         </button>
       <button className="secondary" onClick={()=>confirmPayment("confirm_deposit")} disabled={!!busy}><Save size={18} />标记试看费已支付</button><button className="secondary" onClick={()=>confirmPayment("confirm_selection")} disabled={!!busy || !hasGenerated}><Save size={18} />标记选片费已支付</button>{hasActiveTask ? <button className="secondary" onClick={pollGeneration} disabled={!!busy}><RefreshCw size={18} />{busy === "poll" ? "查询中..." : "查询生成结果"}</button> : null}{hasThemes ? <button className="secondary" onClick={()=>startGeneration("regenerate")} disabled={!!busy || !canStartGeneration} title={!canStartGeneration && status === "generating" ? "当前正在生成中，请稍候" : undefined}><RefreshCw size={18} />{generationButtonText}</button> : null}{status === "generating" && (
