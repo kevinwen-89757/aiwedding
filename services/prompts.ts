@@ -1686,6 +1686,231 @@ Full body studio shot. The bride gently holds the groom's arm while the groom st
       },
     ]
   }),
+  makeTheme({
+    themeId: "zhongshi-garden",
+    themeName: "中式园林",
+    themeDescription: "园林石拱门、白墙黛瓦、廊桥水榭，低饱和灰绿调，东方雅致与浪漫氛围交织。",
+    suitableFor: "适合喜欢古典中式、江南意境、含蓄东方美的用户。",
+    defaultAspectRatio: "3:4",
+    coverImage: "/demo/themes/chinese-classic-garden/cover-1.jpg",
+    coverImages: ["/demo/themes/chinese-classic-garden/cover-1.jpg", "/demo/themes/chinese-classic-garden/cover-2.jpg", "/demo/themes/chinese-classic-garden/cover-3.jpg", "/demo/themes/chinese-classic-garden/cover-4.jpg", "/demo/themes/chinese-classic-garden/cover-5.jpg"],
+    galleryImages: ["/demo/themes/chinese-classic-garden/1.jpg", "/demo/themes/chinese-classic-garden/2.jpg", "/demo/themes/chinese-classic-garden/3.jpg", "/demo/themes/chinese-classic-garden/4.jpg", "/demo/themes/chinese-classic-garden/5.jpg"],
+    prompts: [
+      {
+        name: "A",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清竖构图（3:4）。怀旧民国风终曲，光线明暗对比强烈，非对称构图。\n\n一、人物绑定（最高优先级）\n\n人物：严格使用您上传的肖像。男性为新郎，女性为新娘。肖像保真：100%沿用原图五官、肤色，禁止修改。身材比例：男性身姿挺拔，女性形体舒展优雅。\n\n二、造型细节\n\n新娘： 穿戴白色蕾丝婚纱，花饰头纱质感通透；珍珠配饰呈现金属与珠光的真实光感；黑色复古盘发。\n\n新郎： 穿着笔挺黑西装，黑色复古短背头，面如冠玉。动作姿势自然，神态愉悦随和。\n\n三、场景与画质\n\n场景： 园林石拱门，光影错落，环境色调清冷通透。\n\n光影与画质： 4K写实逼真，富士胶片滤镜感。\n\nNegative Prompt: 画面死白、过曝、模特油光、皮肤反光严重、模特佝偻、表情木讷。\n\n四、分镜动作\n\nFull body shot from a side angle, the couple walking hand-in-hand through a stone archway. They look happy and free, their postures are straight and noble. The bride's veil flows slightly behind her. Cinematic composition with a rich nostalgic narrative. --ar 3:4`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清竖构图（3:4）。怀旧民国风终曲，光线明暗对比强烈，非对称构图。 一、人物绑定（最高优先级） 人物：严格使用您上传的肖像。男性为新郎，女性为新娘。肖像保真：100%沿用原图五官、肤色，禁止修改。身材比例：男性身姿挺拔，女性形体舒展优雅。 二、造型细节 新娘： 穿戴白色蕾丝婚纱，花饰头纱质感通透；珍珠配饰呈现金属与珠光的真实光感；黑色复古盘发。 新郎： 穿着笔挺黑西装，黑色复古短背头，面如冠玉。动作姿势自然，神态愉悦随和。 三、场景与画质 场景： 园林石拱门，光影错落，环境色调清冷通透。 光影与画质： 4K写实逼真，富士胶片滤镜感。 Negative Prompt: 画面死白、过曝、模特油光、皮肤反光严重、模特佝偻、表情木讷。 四、分镜动作 Full body shot from a side angle, the couple walking hand-in-hand through a stone archway. They look happy and free, their postures are straight and noble. The bride's veil flows slightly behind her. Cinematic composition with a rich nostalgic narrative. --ar 3:4`,
+        aspectRatio: "3:4",
+        scene: "中式园林",
+        pose: "A",
+        styleTags: []
+      },
+      {
+        name: "B",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清竖构图（3:4）。中式园林新娘单人照，富士胶卷清冷通透，非对称构图，明暗对比强烈。\n\n一、人物绑定（最高优先级）\n\n人物：仅出现女性，新娘单人。严格使用上传的新娘肖像，100%沿用原图五官、脸型、肤色。女性形体舒展优雅，严禁缩脖、耸肩、佝偻。\n\n二、造型细节（与本风格全套保持统一）\n\n新娘：白色蕾丝婚纱，花饰头纱质感通透，珍珠项链与珍珠饰品，黑色复古盘发，温婉哑光妆容。\n\n新郎：本张为新娘单人照，新郎不出现。\n\n三、场景与画质\n\n场景：中式园林绿植与雕花窗，色调消色处理，复古冷咖与暗绿交织。富士胶片颗粒，脸部温润哑光。\n\nNegative Prompt: no groom, no third person, overexposed, oily skin, slouching, blurred face, vibrant green, modern buildings.\n\n四、分镜动作\n\nMedium close-up shot. The bride stands beside a carved wooden window, holding the bouquet near her chest and looking down with a gentle happy smile. --ar 3:4`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清竖构图（3:4）。中式园林新娘单人照，富士胶卷清冷通透，非对称构图，明暗对比强烈。 一、人物绑定（最高优先级） 人物：仅出现女性，新娘单人。严格使用上传的新娘肖像，100%沿用原图五官、脸型、肤色。女性形体舒展优雅，严禁缩脖、耸肩、佝偻。 二、造型细节（与本风格全套保持统一） 新娘：白色蕾丝婚纱，花饰头纱质感通透，珍珠项链与珍珠饰品，黑色复古盘发，温婉哑光妆容。 新郎：本张为新娘单人照，新郎不出现。 三、场景与画质 场景：中式园林绿植与雕花窗，色调消色处理，复古冷咖与暗绿交织。富士胶片颗粒，脸部温润哑光。 Negative Prompt: no groom, no third person, overexposed, oily skin, slouching, blurred face, vibrant green, modern buildings. 四、分镜动作 Medium close-up shot. The bride stands beside a carved wooden window, holding the bouquet near her chest and looking down with a gentle happy smile. --ar 3:4`,
+        aspectRatio: "3:4",
+        scene: "中式园林",
+        pose: "B",
+        styleTags: []
+      },
+      {
+        name: "C",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清竖构图（3:4）。中式园林新郎单人照，民国贵公子感，富士胶片质感。\n\n一、人物绑定（最高优先级）\n\n人物：仅出现男性，新郎单人。严格使用上传的新郎肖像，100%还原。新郎面如冠玉，英俊帅气，眼神清澈有神，身姿挺拔，严禁小眼睛、日本脸特征、长发、佝偻。\n\n二、造型细节（与本风格全套保持统一）\n\n新郎：笔挺纯黑西装，精致领结，黑色复古短背头，妆容干净自然，面部温润哑光。\n\n新娘：本张为新郎单人照，新娘不出现。\n\n三、场景与画质\n\n场景：园林石拱门与木质背景，光影错落，环境色调清冷复古。富士胶片颗粒，4K写实。\n\nNegative Prompt: no bride, no third person, no long hair, oily face, overexposure, small eyes, Japanese facial features, slouching.\n\n四、分镜动作\n\nMedium portrait shot. The groom stands upright near the garden stone arch, one hand adjusting his bowtie, looking slightly away with a calm noble expression. --ar 3:4`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清竖构图（3:4）。中式园林新郎单人照，民国贵公子感，富士胶片质感。 一、人物绑定（最高优先级） 人物：仅出现男性，新郎单人。严格使用上传的新郎肖像，100%还原。新郎面如冠玉，英俊帅气，眼神清澈有神，身姿挺拔，严禁小眼睛、日本脸特征、长发、佝偻。 二、造型细节（与本风格全套保持统一） 新郎：笔挺纯黑西装，精致领结，黑色复古短背头，妆容干净自然，面部温润哑光。 新娘：本张为新郎单人照，新娘不出现。 三、场景与画质 场景：园林石拱门与木质背景，光影错落，环境色调清冷复古。富士胶片颗粒，4K写实。 Negative Prompt: no bride, no third person, no long hair, oily face, overexposure, small eyes, Japanese facial features, slouching. 四、分镜动作 Medium portrait shot. The groom stands upright near the garden stone arch, one hand adjusting his bowtie, looking slightly away with a calm noble expression. --ar 3:4`,
+        aspectRatio: "3:4",
+        scene: "中式园林",
+        pose: "C",
+        styleTags: []
+      },
+      {
+        name: "D",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：电影宽银幕（16:9）。随意自然的中式园林互动瞬间，极具回忆感，动作随和且心情愉悦。\n\n一、人物绑定（最高优先级）\n\n人物：双人合影。严格使用上传肖像。男性身高约180cm挺拔，女性优美。肖像100%还原。新郎黑色短背头，严禁长发、小眼睛、日本脸特征。\n\n二、造型细节（与本风格全套保持统一）\n\n新娘：白色蕾丝婚纱，花饰头纱，珍珠饰品，复古盘发，表情可爱自然。\n\n新郎：纯黑西装，精致领结，黑色复古短背头。饰品配件质感清晰。\n\n三、场景与画质\n\n场景：园林中的复古木质长椅与消色植被。颗粒感细腻，写实逼真，动作松弛不佝偻，面部无油光。\n\nNegative Prompt: overexposed highlights, greasy skin, hunchback, no Japanese style, no small eyes for groom, no blurred face, no long hair.\n\n四、分镜动作\n\nWide cinematic shot. The couple sits casually on a vintage wooden bench, facing each other and laughing naturally. The bride lightly holds the groom's arm; the groom keeps an upright relaxed posture. --ar 16:9`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：电影宽银幕（16:9）。随意自然的中式园林互动瞬间，极具回忆感，动作随和且心情愉悦。 一、人物绑定（最高优先级） 人物：双人合影。严格使用上传肖像。男性身高约180cm挺拔，女性优美。肖像100%还原。新郎黑色短背头，严禁长发、小眼睛、日本脸特征。 二、造型细节（与本风格全套保持统一） 新娘：白色蕾丝婚纱，花饰头纱，珍珠饰品，复古盘发，表情可爱自然。 新郎：纯黑西装，精致领结，黑色复古短背头。饰品配件质感清晰。 三、场景与画质 场景：园林中的复古木质长椅与消色植被。颗粒感细腻，写实逼真，动作松弛不佝偻，面部无油光。 Negative Prompt: overexposed highlights, greasy skin, hunchback, no Japanese style, no small eyes for groom, no blurred face, no long hair. 四、分镜动作 Wide cinematic shot. The couple sits casually on a vintage wooden bench, facing each other and laughing naturally. The bride lightly holds the groom's arm; the groom keeps an upright relaxed posture. --ar 16:9`,
+        aspectRatio: "16:9",
+        scene: "中式园林",
+        pose: "D",
+        styleTags: []
+      },
+      {
+        name: "E",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：电影宽银幕（16:9）。利用全景深展现人物前后空间跨度，确保前后人物五官均清晰锐利。\n\n一、人物绑定（最高优先级）\n\n人物：双人合影。严格使用上传肖像。男性为新郎，女性为新娘。男性身形挺拔，女性修长，男性明显高于女性。新郎短背头，严禁长发与佝偻。\n\n二、造型细节（与本风格全套保持统一）\n\n新娘：白色蕾丝婚纱搭配花饰头纱，手持花束，珍珠项链闪耀，黑色复古盘发。\n\n新郎：笔挺纯黑西装配精致领结，黑色复古短背头，英俊帅气。\n\n三、场景与画质\n\n场景：中式园林长廊或石径，光影纵深明显。全景深，人物脸部、花束、蕾丝、领结全部清晰。\n\nNegative Prompt: blurred face, out of focus, overexposure, oily skin, slouching, Japanese facial features, small eyes, long hair.\n\n四、分镜动作\n\nCinematic deep focus shot. The bride stands in the foreground near a carved window, turning back with a bright smile. The groom stands several meters behind on the garden path, also sharp and clear, looking at her warmly. --ar 16:9`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：电影宽银幕（16:9）。利用全景深展现人物前后空间跨度，确保前后人物五官均清晰锐利。 一、人物绑定（最高优先级） 人物：双人合影。严格使用上传肖像。男性为新郎，女性为新娘。男性身形挺拔，女性修长，男性明显高于女性。新郎短背头，严禁长发与佝偻。 二、造型细节（与本风格全套保持统一） 新娘：白色蕾丝婚纱搭配花饰头纱，手持花束，珍珠项链闪耀，黑色复古盘发。 新郎：笔挺纯黑西装配精致领结，黑色复古短背头，英俊帅气。 三、场景与画质 场景：中式园林长廊或石径，光影纵深明显。全景深，人物脸部、花束、蕾丝、领结全部清晰。 Negative Prompt: blurred face, out of focus, overexposure, oily skin, slouching, Japanese facial features, small eyes, long hair. 四、分镜动作 Cinematic deep focus shot. The bride stands in the foreground near a carved window, turning back with a bright smile. The groom stands several meters behind on the garden path, also sharp and clear, looking at her warmly. --ar 16:9`,
+        aspectRatio: "16:9",
+        scene: "中式园林",
+        pose: "E",
+        styleTags: []
+      },
+      {
+        name: "F",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清竖构图（3:4）。中近景平视构图，专业人像摄影质感，保留细腻胶片颗粒感。\n\n一、人物绑定（最高优先级）\n\n人物：双人合影。严格使用上传肖像，100%还原。身材比例自然，形体美感严禁佝偻。新郎黑色短背头，严禁长发、小眼睛、日本脸特征。\n\n二、造型细节（与本风格全套保持统一）\n\n新娘：白色蕾丝婚纱，花饰头纱，珍珠项链细节分明，黑色复古盘发，温婉哑光妆容。\n\n新郎：纯黑西装配精致领结，黑色复古短背头，面色如玉，英俊帅气。\n\n三、场景与画质\n\n场景：暖调光影映衬下的园林角落。富士胶卷质感，清透自然，画面不过曝。\n\nNegative Prompt: shiny forehead, oily face, no overexposure, no slouching, no expressionless face, no long hair, groom's eyes too small.\n\n四、分镜动作\n\nMedium shot. The couple stands close together beside a garden wall. The bride holds the bouquet near her chin, smiling sweetly; the groom leans slightly toward her with an amiable expression. --ar 3:4`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清竖构图（3:4）。中近景平视构图，专业人像摄影质感，保留细腻胶片颗粒感。 一、人物绑定（最高优先级） 人物：双人合影。严格使用上传肖像，100%还原。身材比例自然，形体美感严禁佝偻。新郎黑色短背头，严禁长发、小眼睛、日本脸特征。 二、造型细节（与本风格全套保持统一） 新娘：白色蕾丝婚纱，花饰头纱，珍珠项链细节分明，黑色复古盘发，温婉哑光妆容。 新郎：纯黑西装配精致领结，黑色复古短背头，面色如玉，英俊帅气。 三、场景与画质 场景：暖调光影映衬下的园林角落。富士胶卷质感，清透自然，画面不过曝。 Negative Prompt: shiny forehead, oily face, no overexposure, no slouching, no expressionless face, no long hair, groom's eyes too small. 四、分镜动作 Medium shot. The couple stands close together beside a garden wall. The bride holds the bouquet near her chin, smiling sweetly; the groom leans slightly toward her with an amiable expression. --ar 3:4`,
+        aspectRatio: "3:4",
+        scene: "中式园林",
+        pose: "F",
+        styleTags: []
+      },
+      {
+        name: "G",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清横构图（3:2）。中式园林复古收束合影，冷咖与暗绿底色，行走互动但不出现纯背影。\n\n一、人物绑定（最高优先级）\n\n人物：双人合影。严格使用上传肖像。男性为唯一新郎，女性为唯一新娘。男性身高约180cm，身形挺拔；女性修长。双人同框时男性明显高于女性。新郎短发，严禁长发。\n\n二、造型细节（与本风格全套保持统一）\n\n新娘：白色蕾丝婚纱，花饰头纱，珍珠配饰，黑色复古盘发。\n\n新郎：笔挺黑西装，精致领结，黑色复古短背头，动作自然，神态愉悦随和。\n\n三、场景与画质\n\n场景：中式园林绿植、石拱门与木窗，色调经过消色处理，复古冷咖与暗绿交织。富士胶片颗粒，清冷通透。\n\nNegative Prompt: no pure back view, oily skin, overexposure, slouching, Japanese features, small eyes, long hair for groom, vibrant green.\n\n四、分镜动作\n\nFull body shot. The couple walks hand-in-hand through a garden stone arch in three-quarter profile, turning slightly toward each other and smiling. Their silhouettes are upright and graceful. --ar 3:2`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清横构图（3:2）。中式园林复古收束合影，冷咖与暗绿底色，行走互动但不出现纯背影。 一、人物绑定（最高优先级） 人物：双人合影。严格使用上传肖像。男性为唯一新郎，女性为唯一新娘。男性身高约180cm，身形挺拔；女性修长。双人同框时男性明显高于女性。新郎短发，严禁长发。 二、造型细节（与本风格全套保持统一） 新娘：白色蕾丝婚纱，花饰头纱，珍珠配饰，黑色复古盘发。 新郎：笔挺黑西装，精致领结，黑色复古短背头，动作自然，神态愉悦随和。 三、场景与画质 场景：中式园林绿植、石拱门与木窗，色调经过消色处理，复古冷咖与暗绿交织。富士胶片颗粒，清冷通透。 Negative Prompt: no pure back view, oily skin, overexposure, slouching, Japanese features, small eyes, long hair for groom, vibrant green. 四、分镜动作 Full body shot. The couple walks hand-in-hand through a garden stone arch in three-quarter profile, turning slightly toward each other and smiling. Their silhouettes are upright and graceful. --ar 3:2`,
+        aspectRatio: "3:2",
+        scene: "中式园林",
+        pose: "G",
+        styleTags: []
+      },
+    ]
+  }),
+  makeTheme({
+    themeId: "sunlit-golden-peak",
+    themeName: "日照金山",
+    themeDescription: "金色雪山脚下婚纱合影，温暖圣洁，阳光为人物勾勒金色轮廓光，呈现宁静深情的电影叙事感。",
+    suitableFor: "适合喜欢雪山、户外、电影感、神圣浪漫氛围的用户。",
+    defaultAspectRatio: "3:4",
+    coverImage: "/demo/themes/sunlit-golden-peak/cover-1.jpg",
+    coverImages: ["/demo/themes/sunlit-golden-peak/cover-1.jpg", "/demo/themes/sunlit-golden-peak/cover-2.jpg", "/demo/themes/sunlit-golden-peak/cover-3.jpg", "/demo/themes/sunlit-golden-peak/cover-4.jpg", "/demo/themes/sunlit-golden-peak/cover-5.jpg"],
+    galleryImages: ["/demo/themes/sunlit-golden-peak/1.jpg", "/demo/themes/sunlit-golden-peak/2.jpg", "/demo/themes/sunlit-golden-peak/3.jpg", "/demo/themes/sunlit-golden-peak/4.jpg", "/demo/themes/sunlit-golden-peak/5.jpg"],
+    prompts: [
+      {
+        name: "A",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清竖构图（3:4）。金色雪山脚下婚纱合影，温暖圣洁。阳光从雪山方向洒来，为人物勾勒出金色轮廓光。保留细腻细节与真实光影层次，呈现宁静深情的电影叙事感。\n\n一、人物绑定（最高优先级）\n\n人物：严格使用您上传的肖像。男性为新郎，身形挺拔，颈部舒展，形体严禁佝偻。女性为新娘，身形柔美优雅，体态轻盈挺拔，皮肤白皙通透，具有女性特有的曲线与气质，温婉端庄。肖像保真：100%沿用原图五官、脸型、肤色，禁止修改。眼神清澈明亮，严禁小眼睛或变形。\n\n二、造型细节\n\n新娘：身着白色缎面婚纱，面料具有柔和珠光感；佩戴长款透明头纱，边缘轻盈通透；发型为自然披散或低盘发，微风吹拂发丝具有灵动感。佩戴简约珍珠耳饰，妆容清透自然，哑光肤质。\n\n新郎：穿着笔挺的深灰或黑色西装搭配白色衬衫，无领带或系简约领结。发型整洁自然，妆容干净。\n\n三、场景与画质\n\n场景：高海拔金色雪山脚下草甸，雪山金顶位于背景中央，天空呈现暖金色黄昏或清晨光线。草甸植被暖黄色与深绿色交织。\n\n光影与画质：阳光从雪山方向照射，为人物打上清晰轮廓光。发丝、头纱边缘、肩部轮廓锐利清晰，禁止动态模糊。自然暖色调，人物温润哑光。\n\nNegative Prompt: no blurred face, no motion blur, no oily skin, no overexposure, no small eyes, no slouching, no bulky figure, no drooping posture, no dull skin, no dark skin, no bright neon colors.\n\n四、分镜动作\n\nMedium full-length vertical shot (3:4). The couple stands side by side on the meadow, both turning their heads in three-quarter profile towards the golden snow mountain. The bride's face is softly illuminated by the warm rim light, her elegant silhouette framed against the majestic mountain backdrop. The groom's right arm wraps around her shoulder; she leans her head gently against his. A gentle breeze lifts her veil and the hem of her dress. Peaceful and deeply affectionate atmosphere. --ar 3:4`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清竖构图（3:4）。金色雪山脚下婚纱合影，温暖圣洁。阳光从雪山方向洒来，为人物勾勒出金色轮廓光。保留细腻细节与真实光影层次，呈现宁静深情的电影叙事感。 一、人物绑定（最高优先级） 人物：严格使用您上传的肖像。男性为新郎，身形挺拔，颈部舒展，形体严禁佝偻。女性为新娘，身形柔美优雅，体态轻盈挺拔，皮肤白皙通透，具有女性特有的曲线与气质，温婉端庄。肖像保真：100%沿用原图五官、脸型、肤色，禁止修改。眼神清澈明亮，严禁小眼睛或变形。 二、造型细节 新娘：身着白色缎面婚纱，面料具有柔和珠光感；佩戴长款透明头纱，边缘轻盈通透；发型为自然披散或低盘发，微风吹拂发丝具有灵动感。佩戴简约珍珠耳饰，妆容清透自然，哑光肤质。 新郎：穿着笔挺的深灰或黑色西装搭配白色衬衫，无领带或系简约领结。发型整洁自然，妆容干净。 三、场景与画质 场景：高海拔金色雪山脚下草甸，雪山金顶位于背景中央，天空呈现暖金色黄昏或清晨光线。草甸植被暖黄色与深绿色交织。 光影与画质：阳光从雪山方向照射，为人物打上清晰轮廓光。发丝、头纱边缘、肩部轮廓锐利清晰，禁止动态模糊。自然暖色调，人物温润哑光。 Negative Prompt: no blurred face, no motion blur, no oily skin, no overexposure, no small eyes, no slouching, no bulky figure, no drooping posture, no dull skin, no dark skin, no bright neon colors. 四、分镜动作 Medium full-length vertical shot (3:4). The couple stands side by side on the meadow, both turning their heads in three-quarter profile towards the golden snow mountain. The bride's face is softly illuminated by the warm rim light, her elegant silhouette framed against the majestic mountain backdrop. The groom's right arm wraps around her shoulder; she leans her head gently against his. A gentle breeze lifts her veil and the hem of her dress. Peaceful and deeply affectionate atmosphere. --ar 3:4`,
+        aspectRatio: "3:4",
+        scene: "日照金山",
+        pose: "A",
+        styleTags: []
+      },
+      {
+        name: "B",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清竖构图（3:4）。金色雪峰前新娘全身肖像，竖幅。面部为绝对焦点：灿烂笑容、露齿、眼神明亮有神，仿佛看向镜头外的爱人。头纱向两侧飘扬如翼，呈现圣洁优雅的仪式感。\n\n一、人物绑定（最高优先级）\n\n人物：仅出现女性，新娘单人。严格使用上传的新娘肖像，100%沿用原图五官、脸型、肤色，禁止修改。面部细节极致清晰：灿烂笑容、露齿、眼神明亮有神。新娘身形柔美优雅，体态轻盈挺拔，皮肤白皙通透，曲线优雅自然，严禁缩脖、耸肩、臃肿。新郎本张不出镜。\n\n二、造型细节\n\n新娘：白色缎面婚纱，全身像展示完整裙摆与铺散形态。头纱向两侧飘扬如翼。双手捧白色蝴蝶兰手捧花于腰腹前，蝴蝶兰花朵自然垂坠。简约珍珠耳饰。清透哑光妆容，笑容灿烂。\n\n新郎：本张为新娘单人照，新郎不出现。\n\n三、场景与画质\n\n场景：金色雪峰前草甸，全身竖构图婚纱照经典视角。暖金色夕阳光线。\n\n光影与画质：面部为绝对焦点，细节极致清晰——灿烂笑容、露齿、眼神光明亮。头纱细节、蝴蝶兰花瓣纹理真实可辨。暖金调自然光线，人物温润哑光。\n\nNegative Prompt: no groom, no third person, no blurred face, no oily skin, no overexposure, no slouching, no bulky figure, no dull skin, no dark skin, no closed mouth, no sad expression.\n\n四、分镜动作\n\nFull-length vertical portrait (3:4). The bride stands facing slightly towards the camera with a radiant, open-mouthed smile, her eyes bright and sparkling as if looking at her beloved beyond the lens. She holds a white phalaenopsis bouquet at waist level, the flowers naturally cascading downward. Her veil spreads to both sides like wings against the golden snow peak backdrop. Elegant and sacred atmosphere. --ar 3:4`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清竖构图（3:4）。金色雪峰前新娘全身肖像，竖幅。面部为绝对焦点：灿烂笑容、露齿、眼神明亮有神，仿佛看向镜头外的爱人。头纱向两侧飘扬如翼，呈现圣洁优雅的仪式感。 一、人物绑定（最高优先级） 人物：仅出现女性，新娘单人。严格使用上传的新娘肖像，100%沿用原图五官、脸型、肤色，禁止修改。面部细节极致清晰：灿烂笑容、露齿、眼神明亮有神。新娘身形柔美优雅，体态轻盈挺拔，皮肤白皙通透，曲线优雅自然，严禁缩脖、耸肩、臃肿。新郎本张不出镜。 二、造型细节 新娘：白色缎面婚纱，全身像展示完整裙摆与铺散形态。头纱向两侧飘扬如翼。双手捧白色蝴蝶兰手捧花于腰腹前，蝴蝶兰花朵自然垂坠。简约珍珠耳饰。清透哑光妆容，笑容灿烂。 新郎：本张为新娘单人照，新郎不出现。 三、场景与画质 场景：金色雪峰前草甸，全身竖构图婚纱照经典视角。暖金色夕阳光线。 光影与画质：面部为绝对焦点，细节极致清晰——灿烂笑容、露齿、眼神光明亮。头纱细节、蝴蝶兰花瓣纹理真实可辨。暖金调自然光线，人物温润哑光。 Negative Prompt: no groom, no third person, no blurred face, no oily skin, no overexposure, no slouching, no bulky figure, no dull skin, no dark skin, no closed mouth, no sad expression. 四、分镜动作 Full-length vertical portrait (3:4). The bride stands facing slightly towards the camera with a radiant, open-mouthed smile, her eyes bright and sparkling as if looking at her beloved beyond the lens. She holds a white phalaenopsis bouquet at waist level, the flowers naturally cascading downward. Her veil spreads to both sides like wings against the golden snow peak backdrop. Elegant and sacred atmosphere. --ar 3:4`,
+        aspectRatio: "3:4",
+        scene: "日照金山",
+        pose: "B",
+        styleTags: []
+      },
+      {
+        name: "C",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清竖构图（3:4）。金色雪峰前新郎单人竖幅肖像。新郎侧身伫立，目光望向远方雪山，面部轮廓在暖金光线中清晰分明。展现挺拔俊朗、沉稳深情的绅士气质。\n\n一、人物绑定（最高优先级）\n\n人物：仅出现男性，新郎单人。严格使用上传的新郎肖像，100%沿用原图五官、脸型、肤色，禁止修改。身形挺拔，颈部舒展，肩背宽阔，形体严禁佝偻。新娘本张不出镜。\n\n二、造型细节\n\n新郎：穿着笔挺的深灰或黑色西装搭配白色衬衫，系简约领结。发型整洁自然，打理得干净利落。妆容干净，呈现出沉稳绅士的高级感。\n\n新娘：本张为新郎单人照，新娘不出现。\n\n三、场景与画质\n\n场景：金色雪峰前草甸，竖幅单人肖像。暖金色黄昏光线从雪山方向打来。\n\n光影与画质：侧光勾勒面部轮廓与西装肩线，面部轮廓分明，人物温润哑光。雪山金顶在背景中清晰可辨，增添深远意境。\n\nNegative Prompt: no bride, no third person, no oily skin, no overexposure, no blurred face, no slouching, no small eyes, no dull skin, no dark skin.\n\n四、分镜动作\n\nFull-length vertical portrait (3:4). The groom stands alone on the meadow, facing slightly sideways with his gaze directed towards the distant golden snow mountain. The warm golden light from the mountain side illuminates his facial profile and the sharp lines of his suit. His posture is tall and upright, exuding a calm, dignified elegance. Serene and majestic atmosphere. --ar 3:4`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清竖构图（3:4）。金色雪峰前新郎单人竖幅肖像。新郎侧身伫立，目光望向远方雪山，面部轮廓在暖金光线中清晰分明。展现挺拔俊朗、沉稳深情的绅士气质。 一、人物绑定（最高优先级） 人物：仅出现男性，新郎单人。严格使用上传的新郎肖像，100%沿用原图五官、脸型、肤色，禁止修改。身形挺拔，颈部舒展，肩背宽阔，形体严禁佝偻。新娘本张不出镜。 二、造型细节 新郎：穿着笔挺的深灰或黑色西装搭配白色衬衫，系简约领结。发型整洁自然，打理得干净利落。妆容干净，呈现出沉稳绅士的高级感。 新娘：本张为新郎单人照，新娘不出现。 三、场景与画质 场景：金色雪峰前草甸，竖幅单人肖像。暖金色黄昏光线从雪山方向打来。 光影与画质：侧光勾勒面部轮廓与西装肩线，面部轮廓分明，人物温润哑光。雪山金顶在背景中清晰可辨，增添深远意境。 Negative Prompt: no bride, no third person, no oily skin, no overexposure, no blurred face, no slouching, no small eyes, no dull skin, no dark skin. 四、分镜动作 Full-length vertical portrait (3:4). The groom stands alone on the meadow, facing slightly sideways with his gaze directed towards the distant golden snow mountain. The warm golden light from the mountain side illuminates his facial profile and the sharp lines of his suit. His posture is tall and upright, exuding a calm, dignified elegance. Serene and majestic atmosphere. --ar 3:4`,
+        aspectRatio: "3:4",
+        scene: "日照金山",
+        pose: "C",
+        styleTags: []
+      },
+      {
+        name: "D",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清横构图（16:9）。电影宽银幕质感，金色雪山背景柔和虚化。阳光为两人侧脸打上清晰轮廓光，眼神光明显，睫毛与眉骨结构真实可见。突出两人之间额首相抵的亲密情感交流，温暖圣洁。\n\n一、人物绑定（最高优先级）\n\n人物：严格使用您上传的肖像。男性为新郎，身形挺拔，形体严禁佝偻。女性为新娘，身形柔美优雅，体态轻盈，皮肤白皙通透，曲线优雅自然。肖像保真：100%沿用原图五官、脸型、肤色，禁止修改。\n\n二、造型细节\n\n新娘：白色缎面婚纱上半身可见，透明头纱垂落。简约珍珠耳饰，清透哑光妆容。\n\n新郎：深灰或黑色西装搭配白色衬衫，整洁自然。\n\n三、场景与画质\n\n场景：金色雪山前，中近景构图，背景雪山柔和虚化。暖金色夕阳光线。\n\n光影与画质：侧光提供面部轮廓光，眼神光清晰。睫毛、眉骨、皮肤纹理真实。背景柔和虚化（bokeh），前景人物锐利。暖金调。\n\nNegative Prompt: no blurred face, no oily skin, no overexposure, no small eyes, no slouching, no dull skin, no dark skin.\n\n四、分镜动作\n\nMedium close-up (16:9), cinematic widescreen. The couple presses their foreheads together, both hands clasped at chest level. Both have their eyes gently closed, with warm, tender expressions. The golden snow mountain fades softly into the bokeh background. Warm rim light highlights their facial profiles. Intimate and sacred atmosphere. --ar 16:9`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清横构图（16:9）。电影宽银幕质感，金色雪山背景柔和虚化。阳光为两人侧脸打上清晰轮廓光，眼神光明显，睫毛与眉骨结构真实可见。突出两人之间额首相抵的亲密情感交流，温暖圣洁。 一、人物绑定（最高优先级） 人物：严格使用您上传的肖像。男性为新郎，身形挺拔，形体严禁佝偻。女性为新娘，身形柔美优雅，体态轻盈，皮肤白皙通透，曲线优雅自然。肖像保真：100%沿用原图五官、脸型、肤色，禁止修改。 二、造型细节 新娘：白色缎面婚纱上半身可见，透明头纱垂落。简约珍珠耳饰，清透哑光妆容。 新郎：深灰或黑色西装搭配白色衬衫，整洁自然。 三、场景与画质 场景：金色雪山前，中近景构图，背景雪山柔和虚化。暖金色夕阳光线。 光影与画质：侧光提供面部轮廓光，眼神光清晰。睫毛、眉骨、皮肤纹理真实。背景柔和虚化（bokeh），前景人物锐利。暖金调。 Negative Prompt: no blurred face, no oily skin, no overexposure, no small eyes, no slouching, no dull skin, no dark skin. 四、分镜动作 Medium close-up (16:9), cinematic widescreen. The couple presses their foreheads together, both hands clasped at chest level. Both have their eyes gently closed, with warm, tender expressions. The golden snow mountain fades softly into the bokeh background. Warm rim light highlights their facial profiles. Intimate and sacred atmosphere. --ar 16:9`,
+        aspectRatio: "16:9",
+        scene: "日照金山",
+        pose: "D",
+        styleTags: []
+      },
+      {
+        name: "E",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清横构图（16:9）。聚焦人物上半身，雪山背景柔和虚化。两人面部贴合的细节清晰——闭眼微笑的幸福表情自然放松，睫毛、皮肤纹理真实。呈现温暖亲密、被守护的安全感。\n\n一、人物绑定（最高优先级）\n\n人物：严格使用您上传的肖像。男性为新郎，身形挺拔。女性为新娘，身形柔美优雅，体态轻盈，皮肤白皙通透，曲线优雅自然。肖像保真：100%沿用原图五官、脸型、肤色，禁止修改。\n\n二、造型细节\n\n新娘：白色缎面婚纱上半身可见，透明头纱垂落。简约珍珠耳饰。\n\n新郎：深灰或黑色西装搭配白色衬衫。\n\n三、场景与画质\n\n场景：金色雪山前，中景构图，背景雪山柔和虚化。暖金色光线。\n\n光影与画质：柔和暖光打亮双人面部，闭眼微笑的幸福表情清晰自然。睫毛、皮肤纹理真实可见。背景自然虚化（bokeh）。\n\nNegative Prompt: no blurred face, no oily skin, no overexposure, no small eyes, no slouching, no stiff expression, no dull skin, no dark skin.\n\n四、分镜动作\n\nMedium close-up (16:9), focusing on upper bodies. The groom embraces the bride from behind, his arms crossed gently in front of her waist. The bride rests her hands lightly on his arms, tilting her head back slightly against his cheek, both with eyes closed and happy, relaxed smiles. The golden mountain softly blurs into the background. Protected, warm, and intimate atmosphere. --ar 16:9`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清横构图（16:9）。聚焦人物上半身，雪山背景柔和虚化。两人面部贴合的细节清晰——闭眼微笑的幸福表情自然放松，睫毛、皮肤纹理真实。呈现温暖亲密、被守护的安全感。 一、人物绑定（最高优先级） 人物：严格使用您上传的肖像。男性为新郎，身形挺拔。女性为新娘，身形柔美优雅，体态轻盈，皮肤白皙通透，曲线优雅自然。肖像保真：100%沿用原图五官、脸型、肤色，禁止修改。 二、造型细节 新娘：白色缎面婚纱上半身可见，透明头纱垂落。简约珍珠耳饰。 新郎：深灰或黑色西装搭配白色衬衫。 三、场景与画质 场景：金色雪山前，中景构图，背景雪山柔和虚化。暖金色光线。 光影与画质：柔和暖光打亮双人面部，闭眼微笑的幸福表情清晰自然。睫毛、皮肤纹理真实可见。背景自然虚化（bokeh）。 Negative Prompt: no blurred face, no oily skin, no overexposure, no small eyes, no slouching, no stiff expression, no dull skin, no dark skin. 四、分镜动作 Medium close-up (16:9), focusing on upper bodies. The groom embraces the bride from behind, his arms crossed gently in front of her waist. The bride rests her hands lightly on his arms, tilting her head back slightly against his cheek, both with eyes closed and happy, relaxed smiles. The golden mountain softly blurs into the background. Protected, warm, and intimate atmosphere. --ar 16:9`,
+        aspectRatio: "16:9",
+        scene: "日照金山",
+        pose: "E",
+        styleTags: []
+      },
+      {
+        name: "F",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清竖构图（3:4）。经典求婚视角竖幅。金色雪山为宏大背景，裙摆环绕新娘形成视觉重心。新郎抬头仰望新娘的面部表情（期待、虔诚）必须清晰，新娘低头的神态（惊喜、幸福）必须可读，眼神明亮充满笑意。画面充满仪式感与幸福感。\n\n一、人物绑定（最高优先级）\n\n人物：严格使用您上传的肖像。男性为新郎，身形挺拔，单膝跪地重心稳定。女性为新娘，身形柔美优雅，体态轻盈挺拔，皮肤白皙通透，站立时展现女性优美的曲线与气质。肖像保真：100%沿用原图五官、脸型、肤色，禁止修改。新郎面部表情需清晰可辨（期待、虔诚），新娘眼神明亮有神，表情充满惊喜与幸福。\n\n二、造型细节\n\n新娘：白色缎面婚纱，裙摆大面积环绕铺散于草甸作为视觉重心。透明头纱垂落。简约珍珠耳饰，清透哑光妆容。\n\n新郎：深灰或黑色西装搭配白色衬衫。\n\n三、场景与画质\n\n场景：金色雪山脚下草甸，求婚视角竖幅。暖金色自然光。\n\n光影与画质：暖调光线柔和打亮双人面部，确保膝盖与草地真实接触。人物轮廓清晰，肤色真实自然。\n\nNegative Prompt: no blurred face, no oily skin, no overexposure, no small eyes, no slouching, no floating knees, no dull skin, no dark skin.\n\n四、分镜动作\n\nMedium full-length vertical shot (3:4), classic proposal angle. The groom kneels on one knee, stable and centered, holding the bride's left hand with both hands, looking up at her with an expectant, devoted expression. The bride stands facing him, one hand covering her mouth, looking down with joyful surprise and bright, sparkling eyes. Her dress spreads around her as the visual focal point. Romantic and ceremonial atmosphere. --ar 3:4`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清竖构图（3:4）。经典求婚视角竖幅。金色雪山为宏大背景，裙摆环绕新娘形成视觉重心。新郎抬头仰望新娘的面部表情（期待、虔诚）必须清晰，新娘低头的神态（惊喜、幸福）必须可读，眼神明亮充满笑意。画面充满仪式感与幸福感。 一、人物绑定（最高优先级） 人物：严格使用您上传的肖像。男性为新郎，身形挺拔，单膝跪地重心稳定。女性为新娘，身形柔美优雅，体态轻盈挺拔，皮肤白皙通透，站立时展现女性优美的曲线与气质。肖像保真：100%沿用原图五官、脸型、肤色，禁止修改。新郎面部表情需清晰可辨（期待、虔诚），新娘眼神明亮有神，表情充满惊喜与幸福。 二、造型细节 新娘：白色缎面婚纱，裙摆大面积环绕铺散于草甸作为视觉重心。透明头纱垂落。简约珍珠耳饰，清透哑光妆容。 新郎：深灰或黑色西装搭配白色衬衫。 三、场景与画质 场景：金色雪山脚下草甸，求婚视角竖幅。暖金色自然光。 光影与画质：暖调光线柔和打亮双人面部，确保膝盖与草地真实接触。人物轮廓清晰，肤色真实自然。 Negative Prompt: no blurred face, no oily skin, no overexposure, no small eyes, no slouching, no floating knees, no dull skin, no dark skin. 四、分镜动作 Medium full-length vertical shot (3:4), classic proposal angle. The groom kneels on one knee, stable and centered, holding the bride's left hand with both hands, looking up at her with an expectant, devoted expression. The bride stands facing him, one hand covering her mouth, looking down with joyful surprise and bright, sparkling eyes. Her dress spreads around her as the visual focal point. Romantic and ceremonial atmosphere. --ar 3:4`,
+        aspectRatio: "3:4",
+        scene: "日照金山",
+        pose: "F",
+        styleTags: []
+      },
+      {
+        name: "G",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清横构图（3:2）。静谧悠远的收尾画面。雪山、草甸、人物融为一体。两人坐于草地，新娘依偎新郎怀中，一同望向远方金色雪山。远景中，两人轮廓、新娘头纱垂落轨迹、裙摆铺散形态均需清晰，避免因距离远而产生的细节丢失。画面充满岁月静好之感。\n\n一、人物绑定（最高优先级）\n\n人物：严格使用您上传的肖像。男性为新郎，端坐草地，身形挺拔。女性为新娘，依偎新郎怀中，身形柔美优雅，体态轻盈舒展，皮肤白皙通透。肖像保真：100%沿用原图五官、脸型、肤色，禁止修改。远景中人物面部可稍小，但轮廓与姿态需清晰可辨。\n\n二、造型细节\n\n新娘：白色缎面婚纱，裙摆铺散于草地。透明头纱垂落，形态清晰可辨。简约珍珠耳饰。\n\n新郎：深灰或黑色西装，端坐草地。\n\n三、场景与画质\n\n场景：金色雪山脚下草甸，远景构图。暖金色黄昏光线。\n\n光影与画质：远景中人物轮廓、头纱垂落轨迹、裙摆铺散形态均需锐利清晰，防止远距离细节丢失。雪山金顶与草甸形成温暖和谐的色调。自然暖金调。\n\nNegative Prompt: no blurred face, no oily skin, no overexposure, no slouching, no loss of detail, no pixelation, no dull skin, no dark skin.\n\n四、分镜动作\n\nWide landscape closing shot (3:2). The couple sits together on the meadow, the bride nestled in the groom's embrace, both gazing towards the distant golden snow mountain. Their silhouettes remain crisp even in the wide view — the bride's veil cascading softly, her dress spreading naturally over the grass as the golden summit glows in the warm light. Timeless and peaceful atmosphere, evoking a sense of enduring love. --ar 3:2`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清横构图（3:2）。静谧悠远的收尾画面。雪山、草甸、人物融为一体。两人坐于草地，新娘依偎新郎怀中，一同望向远方金色雪山。远景中，两人轮廓、新娘头纱垂落轨迹、裙摆铺散形态均需清晰，避免因距离远而产生的细节丢失。画面充满岁月静好之感。 一、人物绑定（最高优先级） 人物：严格使用您上传的肖像。男性为新郎，端坐草地，身形挺拔。女性为新娘，依偎新郎怀中，身形柔美优雅，体态轻盈舒展，皮肤白皙通透。肖像保真：100%沿用原图五官、脸型、肤色，禁止修改。远景中人物面部可稍小，但轮廓与姿态需清晰可辨。 二、造型细节 新娘：白色缎面婚纱，裙摆铺散于草地。透明头纱垂落，形态清晰可辨。简约珍珠耳饰。 新郎：深灰或黑色西装，端坐草地。 三、场景与画质 场景：金色雪山脚下草甸，远景构图。暖金色黄昏光线。 光影与画质：远景中人物轮廓、头纱垂落轨迹、裙摆铺散形态均需锐利清晰，防止远距离细节丢失。雪山金顶与草甸形成温暖和谐的色调。自然暖金调。 Negative Prompt: no blurred face, no oily skin, no overexposure, no slouching, no loss of detail, no pixelation, no dull skin, no dark skin. 四、分镜动作 Wide landscape closing shot (3:2). The couple sits together on the meadow, the bride nestled in the groom's embrace, both gazing towards the distant golden snow mountain. Their silhouettes remain crisp even in the wide view — the bride's veil cascading softly, her dress spreading naturally over the grass as the golden summit glows in the warm light. Timeless and peaceful atmosphere, evoking a sense of enduring love. --ar 3:2`,
+        aspectRatio: "3:2",
+        scene: "日照金山",
+        pose: "G",
+        styleTags: []
+      },
+    ]
+  }),
+  makeTheme({
+    themeId: "classic-vintage-film",
+    themeName: "经典复古胶片风",
+    themeDescription: "柯达胶片质感（Kodak Portra 400），暖黄色调，画面带有轻微颗粒感和高光溢出，深绿色森林背景，浓郁怀旧叙事性。",
+    suitableFor: "适合喜欢复古胶片、暖黄调、森林氛围、怀旧叙事感的用户。",
+    defaultAspectRatio: "3:4",
+    coverImage: "/demo/themes/classic-retro-film/cover-1.jpg",
+    coverImages: ["/demo/themes/classic-retro-film/cover-1.jpg", "/demo/themes/classic-retro-film/cover-2.jpg", "/demo/themes/classic-retro-film/cover-3.jpg", "/demo/themes/classic-retro-film/cover-4.jpg", "/demo/themes/classic-retro-film/cover-5.jpg"],
+    galleryImages: ["/demo/themes/classic-retro-film/1.jpg", "/demo/themes/classic-retro-film/2.jpg", "/demo/themes/classic-retro-film/3.jpg", "/demo/themes/classic-retro-film/4.jpg", "/demo/themes/classic-retro-film/5.jpg"],
+    prompts: [
+      {
+        name: "A",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清竖构图（3:4）。柯达胶片质感（Kodak Portra 400），暖黄色调。画面带有轻微的颗粒感和高光溢出。背景为郁郁葱葱的深绿色树林。光影呈现出午后阳光穿过叶缝的斑驳感，色调浓郁且具有怀旧叙事性。\n\n一、人物绑定（最高优先级）\n\n人物：严格使用您上传的肖像。男性为新郎，女性为新娘。双人同框，男性明显高于女性（15-20cm），比例自然。肖像保真：100%沿用原图五官、脸型、肤色，禁止修改。\n\n二、造型细节\n\n新娘：穿戴象牙色重工蕾丝长袖婚纱，带有法式拉夫领细节；发型为复古水波纹卷发，佩戴珍珠耳环；妆容强调哑光质感与红棕色调唇膏。\n\n新郎：穿着棕褐色粗花呢三件套西装，内搭浅米色衬衫，佩戴深咖啡色领结；发型为经典的短发侧分油头，呈现复古英伦绅士感。\n\n三、场景与画质\n\n背景：深绿色森林边缘，木质长椅带有磨损痕迹。\n\n光影：丁达尔效应，斑驳光影。\n\n色调：柯达暖黄色调。\n\n画质：35mm胶片扫描感，高光处轻微红晕。\n\n四、分镜动作\n\nFull body shot, the couple sits on a weathered wooden bench, the groom looking at the bride tenderly, a vintage beige suitcase at their feet. Warm film grain, nostalgic mood. --ar 3:4`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清竖构图（3:4）。柯达胶片质感（Kodak Portra 400），暖黄色调。画面带有轻微的颗粒感和高光溢出。背景为郁郁葱葱的深绿色树林。光影呈现出午后阳光穿过叶缝的斑驳感，色调浓郁且具有怀旧叙事性。 一、人物绑定（最高优先级） 人物：严格使用您上传的肖像。男性为新郎，女性为新娘。双人同框，男性明显高于女性（15-20cm），比例自然。肖像保真：100%沿用原图五官、脸型、肤色，禁止修改。 二、造型细节 新娘：穿戴象牙色重工蕾丝长袖婚纱，带有法式拉夫领细节；发型为复古水波纹卷发，佩戴珍珠耳环；妆容强调哑光质感与红棕色调唇膏。 新郎：穿着棕褐色粗花呢三件套西装，内搭浅米色衬衫，佩戴深咖啡色领结；发型为经典的短发侧分油头，呈现复古英伦绅士感。 三、场景与画质 背景：深绿色森林边缘，木质长椅带有磨损痕迹。 光影：丁达尔效应，斑驳光影。 色调：柯达暖黄色调。 画质：35mm胶片扫描感，高光处轻微红晕。 四、分镜动作 Full body shot, the couple sits on a weathered wooden bench, the groom looking at the bride tenderly, a vintage beige suitcase at their feet. Warm film grain, nostalgic mood. --ar 3:4`,
+        aspectRatio: "3:4",
+        scene: "经典复古胶片风",
+        pose: "A",
+        styleTags: []
+      },
+      {
+        name: "B",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清竖构图（3:4）。经典复古胶片新娘单人画报，Kodak Portra 400，暖黄色调，森林边缘斑驳光影。\n\n一、人物绑定（最高优先级）\n\n人物：仅出现女性，新娘单人。严格使用上传新娘肖像，100%还原五官、脸型、肤色。新娘姿态挺拔，展现优美颈部曲线，严禁缩脖、耸肩、佝偻。\n\n二、造型细节（与本风格全套保持统一）\n\n新娘：象牙色重工蕾丝长袖婚纱，法式拉夫领细节，复古水波纹卷发，珍珠耳环，红棕色调唇膏，哑光妆容。\n\n新郎：本张为新娘单人照，新郎不出现。\n\n三、场景与画质\n\n背景：深绿色森林边缘，木质长椅与复古行李箱作为环境点缀。丁达尔光影，35mm胶片扫描感，高光轻微红晕。\n\nNegative Prompt: no groom, no third person, shiny forehead, oily skin, slouching, modern aesthetic, messy hair, low quality, vibrant digital colors.\n\n四、分镜动作\n\nMedium shot. The bride stands beside a weathered wooden bench, gently touching her pearl earring, looking into the camera with a calm confident smile. --ar 3:4`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清竖构图（3:4）。经典复古胶片新娘单人画报，Kodak Portra 400，暖黄色调，森林边缘斑驳光影。 一、人物绑定（最高优先级） 人物：仅出现女性，新娘单人。严格使用上传新娘肖像，100%还原五官、脸型、肤色。新娘姿态挺拔，展现优美颈部曲线，严禁缩脖、耸肩、佝偻。 二、造型细节（与本风格全套保持统一） 新娘：象牙色重工蕾丝长袖婚纱，法式拉夫领细节，复古水波纹卷发，珍珠耳环，红棕色调唇膏，哑光妆容。 新郎：本张为新娘单人照，新郎不出现。 三、场景与画质 背景：深绿色森林边缘，木质长椅与复古行李箱作为环境点缀。丁达尔光影，35mm胶片扫描感，高光轻微红晕。 Negative Prompt: no groom, no third person, shiny forehead, oily skin, slouching, modern aesthetic, messy hair, low quality, vibrant digital colors. 四、分镜动作 Medium shot. The bride stands beside a weathered wooden bench, gently touching her pearl earring, looking into the camera with a calm confident smile. --ar 3:4`,
+        aspectRatio: "3:4",
+        scene: "经典复古胶片风",
+        pose: "B",
+        styleTags: []
+      },
+      {
+        name: "C",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清竖构图（3:4）。经典复古胶片新郎单人肖像，强调粗花呢三件套与英伦绅士气质。\n\n一、人物绑定（最高优先级）\n\n人物：仅出现男性，新郎单人。严格使用上传新郎肖像，100%还原。新郎180cm挺拔身姿，侧脸轮廓干净英俊，眼神聚焦，拒绝眯眯眼、日本脸特征、长发、佝偻。\n\n二、造型细节（与本风格全套保持统一）\n\n新郎：棕褐色粗花呢三件套西装，浅米色衬衫，深咖啡色领结，经典短发侧分油头，复古英伦绅士感。\n\n新娘：本张为新郎单人照，新娘不出现。\n\n三、场景与画质\n\n场景：深绿色森林边缘与复古行李箱。柯达暖黄色调，胶片颗粒，斑驳光影，肤质温润哑光。\n\nNegative Prompt: no bride, no third person, overexposed, oily skin, plastic skin, slouching, Japanese features, small eyes, long hair, messy posture.\n\n四、分镜动作\n\nMedium portrait shot. The groom stands upright beside the vintage suitcase, one hand adjusting his coffee-colored bowtie, looking slightly to the side with a composed smile. --ar 3:4`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清竖构图（3:4）。经典复古胶片新郎单人肖像，强调粗花呢三件套与英伦绅士气质。 一、人物绑定（最高优先级） 人物：仅出现男性，新郎单人。严格使用上传新郎肖像，100%还原。新郎180cm挺拔身姿，侧脸轮廓干净英俊，眼神聚焦，拒绝眯眯眼、日本脸特征、长发、佝偻。 二、造型细节（与本风格全套保持统一） 新郎：棕褐色粗花呢三件套西装，浅米色衬衫，深咖啡色领结，经典短发侧分油头，复古英伦绅士感。 新娘：本张为新郎单人照，新娘不出现。 三、场景与画质 场景：深绿色森林边缘与复古行李箱。柯达暖黄色调，胶片颗粒，斑驳光影，肤质温润哑光。 Negative Prompt: no bride, no third person, overexposed, oily skin, plastic skin, slouching, Japanese features, small eyes, long hair, messy posture. 四、分镜动作 Medium portrait shot. The groom stands upright beside the vintage suitcase, one hand adjusting his coffee-colored bowtie, looking slightly to the side with a composed smile. --ar 3:4`,
+        aspectRatio: "3:4",
+        scene: "经典复古胶片风",
+        pose: "C",
+        styleTags: []
+      },
+      {
+        name: "D",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：电影宽银幕（16:9）。浓郁电影色彩，高饱和度对比。背景为郁郁葱葱的深绿色树林，画面充满剧情感。\n\n一、人物绑定（最高优先级）\n\n人物：双人合影。严格使用上传肖像。新郎身形挺拔，新娘端庄优雅，肖像100%还原。新郎短发侧分油头，严禁长发、眯眯眼、日本脸特征。\n\n二、造型细节（与本风格全套保持统一）\n\n新娘：象牙色重工蕾丝长袖婚纱，复古水波纹卷发，珍珠耳环，红棕色调唇膏。\n\n新郎：棕褐色粗花呢三件套西装，深咖啡色领结，短发侧分油头。\n\n三、场景与画质\n\n背景：森林边缘，复古长椅与行李箱。\n\n光影：对比强烈的丁达尔光影。\n\n色调：复古怀旧。\n\n画质：4K电影胶片质感，阴影深邃。\n\nNegative Prompt: no long hair, overexposure, oily skin, slouching, Japanese style, small eyes, digital smoothing.\n\n四、分镜动作\n\nMedium cinematic shot. The bride gently adjusts the groom's coffee-colored bowtie. They stand near the vintage suitcase, smiling softly at each other in three-quarter profile. --ar 16:9`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：电影宽银幕（16:9）。浓郁电影色彩，高饱和度对比。背景为郁郁葱葱的深绿色树林，画面充满剧情感。 一、人物绑定（最高优先级） 人物：双人合影。严格使用上传肖像。新郎身形挺拔，新娘端庄优雅，肖像100%还原。新郎短发侧分油头，严禁长发、眯眯眼、日本脸特征。 二、造型细节（与本风格全套保持统一） 新娘：象牙色重工蕾丝长袖婚纱，复古水波纹卷发，珍珠耳环，红棕色调唇膏。 新郎：棕褐色粗花呢三件套西装，深咖啡色领结，短发侧分油头。 三、场景与画质 背景：森林边缘，复古长椅与行李箱。 光影：对比强烈的丁达尔光影。 色调：复古怀旧。 画质：4K电影胶片质感，阴影深邃。 Negative Prompt: no long hair, overexposure, oily skin, slouching, Japanese style, small eyes, digital smoothing. 四、分镜动作 Medium cinematic shot. The bride gently adjusts the groom's coffee-colored bowtie. They stand near the vintage suitcase, smiling softly at each other in three-quarter profile. --ar 16:9`,
+        aspectRatio: "16:9",
+        scene: "经典复古胶片风",
+        pose: "D",
+        styleTags: []
+      },
+      {
+        name: "E",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：电影宽银幕（16:9）。利用全景深展现森林纵深，确保前后人物五官、粗花呢西装纹理及蕾丝细节清晰锐利。\n\n一、人物绑定（最高优先级）\n\n人物：双人合影。严格使用上传肖像。新郎身形笔挺，新娘优雅自信。新郎短发侧分油头，拒绝眯眯眼、日本脸特征、长发、佝偻。\n\n二、造型细节（与本风格全套保持统一）\n\n新娘：象牙色重工蕾丝婚纱，拉夫领纹理清晰，复古水波纹卷发。\n\n新郎：棕褐色粗花呢三件套，深咖啡色领结，短发侧分油头。\n\n三、场景与画质\n\n场景：深绿色茂密森林边缘。全景深清晰，模拟35mm胶片机，柯达暖黄调，高光溢出，面部哑光。\n\nNegative Prompt: blurred face, out of focus, overexposure, greasy skin, shiny forehead, slouching, Japanese style, small eyes, long hair.\n\n四、分镜动作\n\nCinematic deep focus shot. The bride leans lightly against a large oak tree in the foreground, looking back with a radiant smile. The groom stands several meters behind on the forest path, facing her and smiling. --ar 16:9`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：电影宽银幕（16:9）。利用全景深展现森林纵深，确保前后人物五官、粗花呢西装纹理及蕾丝细节清晰锐利。 一、人物绑定（最高优先级） 人物：双人合影。严格使用上传肖像。新郎身形笔挺，新娘优雅自信。新郎短发侧分油头，拒绝眯眯眼、日本脸特征、长发、佝偻。 二、造型细节（与本风格全套保持统一） 新娘：象牙色重工蕾丝婚纱，拉夫领纹理清晰，复古水波纹卷发。 新郎：棕褐色粗花呢三件套，深咖啡色领结，短发侧分油头。 三、场景与画质 场景：深绿色茂密森林边缘。全景深清晰，模拟35mm胶片机，柯达暖黄调，高光溢出，面部哑光。 Negative Prompt: blurred face, out of focus, overexposure, greasy skin, shiny forehead, slouching, Japanese style, small eyes, long hair. 四、分镜动作 Cinematic deep focus shot. The bride leans lightly against a large oak tree in the foreground, looking back with a radiant smile. The groom stands several meters behind on the forest path, facing her and smiling. --ar 16:9`,
+        aspectRatio: "16:9",
+        scene: "经典复古胶片风",
+        pose: "E",
+        styleTags: []
+      },
+      {
+        name: "F",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清竖构图（3:4）。复古时尚画报质感合影，强调婚纱细节与新娘楚楚动人的神态。\n\n一、人物绑定（最高优先级）\n\n人物：双人合影。严格使用上传肖像。视觉重心为新娘，新郎作为温柔守护的背景。两人姿态挺拔，严禁缩脖、耸肩、佝偻。新郎短发侧分油头。\n\n二、造型细节（与本风格全套保持统一）\n\n新娘：象牙色重工蕾丝长袖婚纱，复古水波纹卷发，珍珠耳环，哑光红棕唇。\n\n新郎：棕褐色粗花呢西装三件套，浅米色衬衫，深咖啡领结，短发侧分油头。\n\n三、场景与画质\n\n场景：郁郁葱葱的林间，光线穿透树叶。侧逆光勾勒轮廓，丁达尔效应明显，皮肤高级哑光。\n\nNegative Prompt: shiny forehead, oily skin, no slouching, modern aesthetic, messy hair, low quality, bad anatomy, long hair.\n\n四、分镜动作\n\nMedium shot. The bride stands elegantly in front, sunlight hitting her face through the leaves. The groom stands slightly behind her, gently holding the vintage suitcase handle and smiling toward her. --ar 3:4`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清竖构图（3:4）。复古时尚画报质感合影，强调婚纱细节与新娘楚楚动人的神态。 一、人物绑定（最高优先级） 人物：双人合影。严格使用上传肖像。视觉重心为新娘，新郎作为温柔守护的背景。两人姿态挺拔，严禁缩脖、耸肩、佝偻。新郎短发侧分油头。 二、造型细节（与本风格全套保持统一） 新娘：象牙色重工蕾丝长袖婚纱，复古水波纹卷发，珍珠耳环，哑光红棕唇。 新郎：棕褐色粗花呢西装三件套，浅米色衬衫，深咖啡领结，短发侧分油头。 三、场景与画质 场景：郁郁葱葱的林间，光线穿透树叶。侧逆光勾勒轮廓，丁达尔效应明显，皮肤高级哑光。 Negative Prompt: shiny forehead, oily skin, no slouching, modern aesthetic, messy hair, low quality, bad anatomy, long hair. 四、分镜动作 Medium shot. The bride stands elegantly in front, sunlight hitting her face through the leaves. The groom stands slightly behind her, gently holding the vintage suitcase handle and smiling toward her. --ar 3:4`,
+        aspectRatio: "3:4",
+        scene: "经典复古胶片风",
+        pose: "F",
+        styleTags: []
+      },
+      {
+        name: "G",
+        prompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真：\n\n核心任务：超高清横构图（3:2）。经典复古胶片风收束合影，突出长椅、行李箱与温柔叙事。\n\n一、人物绑定（最高优先级）\n\n人物：双人合影。严格使用上传肖像，100%还原。新郎180cm挺拔，新娘纤细优雅。两人保持正面或三分之四侧身，不得纯背影。新郎短发侧分油头。\n\n二、造型细节（与本风格全套保持统一）\n\n新娘：象牙色重工蕾丝长袖婚纱，拉夫领，复古水波纹卷发，珍珠耳环。\n\n新郎：棕褐色粗花呢三件套，深咖啡色领结，短发侧分油头。\n\n三、场景与画质\n\n场景：森林边缘木质长椅，复古米色行李箱在脚边。Kodak Portra 400，暖黄调，胶片颗粒与轻微halation。\n\nNegative Prompt: no pure back view, overexposed, oily skin, slouching, hunchback, modern style, Japanese features, small eyes, long hair.\n\n四、分镜动作\n\nFull body shot. The couple sits on a weathered wooden bench, shoulders gently touching. The groom looks at the bride tenderly; the bride holds his arm and smiles softly toward the camera. --ar 3:2`,
+        rawPrompt: `以@Image @Image 人物为原型，去除所有背景服饰和发型，再生成写真： 核心任务：超高清横构图（3:2）。经典复古胶片风收束合影，突出长椅、行李箱与温柔叙事。 一、人物绑定（最高优先级） 人物：双人合影。严格使用上传肖像，100%还原。新郎180cm挺拔，新娘纤细优雅。两人保持正面或三分之四侧身，不得纯背影。新郎短发侧分油头。 二、造型细节（与本风格全套保持统一） 新娘：象牙色重工蕾丝长袖婚纱，拉夫领，复古水波纹卷发，珍珠耳环。 新郎：棕褐色粗花呢三件套，深咖啡色领结，短发侧分油头。 三、场景与画质 场景：森林边缘木质长椅，复古米色行李箱在脚边。Kodak Portra 400，暖黄调，胶片颗粒与轻微halation。 Negative Prompt: no pure back view, overexposed, oily skin, slouching, hunchback, modern style, Japanese features, small eyes, long hair. 四、分镜动作 Full body shot. The couple sits on a weathered wooden bench, shoulders gently touching. The groom looks at the bride tenderly; the bride holds his arm and smiles softly toward the camera. --ar 3:2`,
+        aspectRatio: "3:2",
+        scene: "经典复古胶片风",
+        pose: "G",
+        styleTags: []
+      },
+    ]
+  }),
 ];
 
 export const weddingPrompts = weddingThemes.flatMap((theme) => theme.prompts.map((prompt) => prompt.rawPrompt));
