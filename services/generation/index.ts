@@ -655,3 +655,137 @@ export async function completeManualGeneration(orderId: string) {
   if (generatedCount < 1) throw new Error("请先上传至少 1 张生成结果。");
   return updateLocalOrderStatus(orderId, "pending_selection");
 }
+
+// ===== ID Photo Generation =====
+
+const ID_PHOTO_PROMPTS: Record<string, string> = {
+  bride: "Identification card photo, premium clean passport portrait converted from the reference lifestyle photo, a 25-year-old Chinese woman with an elegant front view, centered composition, eyes looking straight into the lens, natural professional expression. Faithfully preserving the original facial layout, eyes, and hairstyle from the source image. Upgraded clothing: wearing a minimalist, crisp, professionally ironed light blue shirt. Bright and soft clamshell studio lighting, creating flawless but realistic skin details without over-softening, capturing authentic pores and skin texture. Clean solid white background, high contrast, perfect symmetry, 8k resolution",
+  groom: "ID photo, professional passport portrait converted from the reference lifestyle photo, a 30-year-old Chinese man facing forward, looking directly at the camera, neutral expression, subtle and confident smile. Maintaining the core facial features and hair texture from the original image. Upgraded clothing: wearing a well-tailored dark charcoal grey suit with a crisp, neatly ironed white shirt. High-end studio lighting, softbox illumination, subtle shadows defining the jawline and masculine facial structure. Premium quality, real skin texture, visible pores, sharp focus on eyes, 8k resolution"
+};
+
+export type IdPhotoTaskState = {
+  bride?: { taskId: string; status: "pending" | "completed" | "failed"; error?: string; assetId?: string };
+  groom?: { taskId: string; status: "pending" | "completed" | "failed"; error?: string; assetId?: string };
+};
+
+export async function generateIdPhotoTasks(orderId: string) {
+  const order = await getLocalOrder(orderId);
+  if (!order) throw new Error("Order not found");
+  if (order.photo_type !== "casual_photo") return null;
+
+  const uploads = order.order_assets.filter((asset) => asset.kind === "upload");
+  const brideAsset = uploads.find((a) => a.person_role === "bride");
+  const groomAsset = uploads.find((a) => a.person_role === "groom");
+  if (!brideAsset || !groomAsset) throw new Error("缺少新娘或新郎上传照片");
+
+  const brideBuffer = await readStoredFile(brideAsset.original_path);
+  const groomBuffer = await readStoredFile(groomAsset.original_path);
+
+  const brideImageUrl = await apimartUploadImage({ buffer: brideBuffer, mimeType: brideAsset.mime_type, filename: path.basename(brideAsset.original_path) });
+  const groomImageUrl = await apimartUploadImage({ buffer: groomBuffer, mimeType: groomAsset.mime_type, filename: path.basename(groomAsset.original_path) });
+
+  const brideTask = await apimartCreateGenerationTask({
+    prompt: ID_PHOTO_PROMPTS.bride,
+    uploadedImageUrls: [brideImageUrl],
+    aspectRatio: "3:4"
+  });
+  const groomTask = await apimartCreateGenerationTask({
+    prompt: ID_PHOTO_PROMPTS.groom,
+    uploadedImageUrls: [groomImageUrl],
+    aspectRatio: "3:4"
+  });
+
+  const state: IdPhotoTaskState = {
+    bride: { taskId: brideTask.taskId, status: "pending" },
+    groom: { taskId: groomTask.taskId, status: "pending" }
+  };
+
+  await updateLocalOrder(orderId, (current) => ({
+    ...current,
+    metadata: { ...(current.metadata ?? {}), id_photo_tasks: state }
+  }));
+
+  return state;
+}
+
+export async function pollIdPhotoTasks(orderId: string) {
+  const order = await getLocalOrder(orderId);
+  if (!order) throw new Error("Order not found");
+  const tasks = order.metadata?.id_photo_tasks as IdPhotoTaskState | undefined;
+  if (!tasks) return null;
+
+  const results: IdPhotoTaskState = {};
+
+  for (const role of ["bride", "groom"] as const) {
+    const task = tasks[role];
+    if (!task || task.status === "completed" || task.status === "failed") {
+      results[role] = task;
+      continue;
+    }
+
+    try {
+      const status = await apimartGetTaskStatus(task.taskId);
+      if (["completed", "complete", "success", "succeeded", "done"].includes(status.status)) {
+        if (!status.imageUrl) {
+          results[role] = { ...task, status: "failed", error: "APIMart 任务已完成，但没有返回结果图片 URL" };
+          continue;
+        }
+        // Download and save
+        const downloaded = await apimartDownloadImage(status.imageUrl);
+        const generated = await saveGeneratedImageBuffer(downloaded.buffer, orderId, role === "bride" ? 900 : 901, downloaded.mimeType, `idphoto-${role}`);
+        const preview = await savePreviewImageBuffer(await createWatermarkedPreviewBuffer(downloaded.buffer), orderId, role === "bride" ? 900 : 901, `idphoto-${role}`);
+        const metadata = await imageMetadataFromBuffer(downloaded.buffer);
+        const asset = await addLocalAsset(orderId, {
+          kind: "generated",
+          person_role: role,
+          original_path: generated.relativePath,
+          preview_path: preview.relativePath,
+          mime_type: generated.mimeType,
+          width: metadata.width,
+          height: metadata.height,
+          generation_prompt: ID_PHOTO_PROMPTS[role],
+          theme_id: null,
+          theme_name: "证件照",
+          prompt_id: null,
+          prompt_name: `${role === "bride" ? "新娘" : "新郎"}证件照`,
+          aspect_ratio: "3:4",
+          is_cover_prompt: false,
+          generation_type: "id_photo",
+          generation_provider: "apimart",
+          generation_model: appConfig.apimartModel,
+          generation_task_id: task.taskId,
+          generation_status: status.status,
+          generation_error: null,
+          prompt_index: null,
+          sort_order: role === "bride" ? 900 : 901,
+          is_selected: false,
+          is_unlocked: true
+        });
+        const savedAsset = asset?.order_assets.find((a) => a.generation_task_id === task.taskId);
+        results[role] = { ...task, status: "completed", assetId: savedAsset?.id };
+      } else if (["failed", "failure", "cancelled", "canceled", "error"].includes(status.status)) {
+        results[role] = { ...task, status: "failed", error: `APIMart 返回失败状态：${status.status}` };
+      } else {
+        results[role] = { ...task, status: "pending" };
+      }
+    } catch (err) {
+      results[role] = { ...task, status: "failed", error: errorSummary(err) };
+    }
+  }
+
+  // Update order with results
+  await updateLocalOrder(orderId, (current) => {
+    const nextMetadata = { ...(current.metadata ?? {}), id_photo_tasks: results };
+    const idPhotoAssets: LocalOrder["id_photo_assets"] = { ...current.id_photo_assets };
+    for (const role of ["bride", "groom"] as const) {
+      const r = results[role];
+      if (r?.status === "completed" && r.assetId) {
+        const asset = current.order_assets.find((a) => a.id === r.assetId);
+        if (asset) idPhotoAssets[role] = asset;
+      }
+    }
+    return { ...current, metadata: nextMetadata, id_photo_assets: idPhotoAssets };
+  });
+
+  return results;
+}

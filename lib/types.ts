@@ -34,7 +34,7 @@ export type OrderAsset = {
   prompt_name: string | null;
   aspect_ratio: string | null;
   is_cover_prompt: boolean;
-  generation_type: "normal" | "sweet_spot" | "manual_extra" | "recommendation" | null;
+  generation_type: "normal" | "sweet_spot" | "manual_extra" | "recommendation" | "id_photo" | null;
   generation_provider?: string | null;
   generation_model?: string | null;
   generation_task_id?: string | null;
@@ -69,7 +69,7 @@ export type GenerationJob = {
   prompt_name: string | null;
   aspect_ratio: string | null;
   is_cover_prompt: boolean;
-  generation_type: "normal" | "sweet_spot" | "manual_extra" | "recommendation" | null;
+  generation_type: "normal" | "sweet_spot" | "manual_extra" | "recommendation" | "id_photo" | null;
   prompt_index: number | null;
   raw_prompt: string | null;
   resolution?: string | null;
@@ -91,6 +91,11 @@ export type Order = {
   uploadedPhotos?: {
     bride?: UploadedPersonPhoto;
     groom?: UploadedPersonPhoto;
+  };
+  photo_type?: "id_photo" | "casual_photo" | null;
+  id_photo_assets?: {
+    bride?: OrderAsset;
+    groom?: OrderAsset;
   };
   generation_jobs?: GenerationJob[];
   admin_note: string | null;

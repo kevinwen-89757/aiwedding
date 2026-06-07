@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminUnauthorized } from "@/lib/admin";
 import { confirmLocalPayment, deleteLocalOrder, getLocalOrder, updateLocalOrderStatus } from "@/services/localStore";
+import { generateIdPhotoTasks, generateOrderPreviews } from "@/services/generation";
 type Context = { params: Promise<{ id: string }> };
 export async function DELETE(request: Request, context: Context) {
   const unauthorized = adminUnauthorized(request);
@@ -20,6 +21,16 @@ export async function PATCH(request: Request, context: Context) {
   if (!current) return NextResponse.json({ error: "Order not found" }, { status: 404 });
   if (body.action === "confirm_deposit") {
     await confirmLocalPayment(id, "deposit");
+    // 确认定金后自动开始婚纱照生成
+    void (async () => {
+      try { await generateOrderPreviews(id, { source: "admin" }); } catch (e) { console.error("[auto-generation] failed:", e); }
+    })();
+    // 如果用户上传的是生活照，自动创建证件照生成任务
+    if (current.photo_type === "casual_photo") {
+      void (async () => {
+        try { await generateIdPhotoTasks(id); } catch (e) { console.error("[id-photo-generation] failed:", e); }
+      })();
+    }
     return NextResponse.json({ ok: true });
   }
   if (body.action === "confirm_selection") {

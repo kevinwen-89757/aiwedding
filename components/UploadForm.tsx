@@ -76,6 +76,7 @@ export function UploadForm() {
   const [understood, setUnderstood] = useState(false);
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
+  const [photoType, setPhotoType] = useState<"id_photo" | "casual_photo">("id_photo");
   const [previews, setPreviews] = useState<PreviewState>({ bride: "", groom: "" });
   const [fileInfos, setFileInfos] = useState<{ bride?: FileInfo; groom?: FileInfo }>({});
   const [compressing, setCompressing] = useState(false);
@@ -140,6 +141,7 @@ export function UploadForm() {
       const uploadForm = new FormData();
       uploadForm.append("customerName", name);
       uploadForm.append("customerPhone", phone);
+      uploadForm.append("photoType", photoType);
       if (brideCompressed) uploadForm.append("bridePhoto", brideCompressed);
       if (groomCompressed) uploadForm.append("groomPhoto", groomCompressed);
       const email = form.get("customerEmail");
@@ -190,6 +192,26 @@ export function UploadForm() {
         <span className="field-label">手机号 <RequiredMark /></span>
         <input name="customerPhone" placeholder="仅用于验证查询订单" required maxLength={11} inputMode="tel" pattern="[0-9]{11}" value={customerPhone} onChange={(event)=>setCustomerPhone(event.currentTarget.value.replace(/\D/g, "").slice(0, 11))} />
       </label>
+    </div>
+    <div className="photo-type-section" style={{ marginBottom: 20, padding: "14px 16px", background: "#f8f6f3", borderRadius: 10, border: "1px solid #e8e3dc" }}>
+      <p className="field-label" style={{ marginBottom: 10 }}>照片类型 <RequiredMark /></p>
+      <div style={{ display: "flex", gap: 20, flexWrap: "wrap" }}>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14 }}>
+          <input type="radio" name="photoType" value="id_photo" checked={photoType === "id_photo"} onChange={() => setPhotoType("id_photo")} />
+          <span>证件照（推荐，效果最佳）</span>
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 14 }}>
+          <input type="radio" name="photoType" value="casual_photo" checked={photoType === "casual_photo"} onChange={() => setPhotoType("casual_photo")} />
+          <span>生活照 / 自拍照</span>
+        </label>
+      </div>
+      {photoType === "casual_photo" ? (
+        <div style={{ marginTop: 10, padding: "10px 12px", background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)", borderRadius: 8, fontSize: 13, color: "#b45309" }}>
+          <strong>提示：</strong>生活照/自拍照受光线、角度、表情等影响，生成效果可能不如证件照理想。
+          <br />
+          如手边有<strong>高清证件照</strong>，强烈建议更换为证件照上传，以获得最佳生成质感。
+        </div>
+      ) : null}
     </div>
     <div className="upload-file-row">
       <label className="upload-file-control">

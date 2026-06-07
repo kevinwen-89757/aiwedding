@@ -58,7 +58,7 @@ function AssetTile({ asset, selected, isUnlocked, onToggle, onPreview }: { asset
   );
 }
 
-export function SelectionGrid({ orderId, assets, hasPriorSelectionPayment }: { orderId: string; assets: OrderAsset[]; hasPriorSelectionPayment?: boolean }) {
+export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectionPayment }: { orderId: string; assets: OrderAsset[]; idPhotoAssets?: OrderAsset[]; hasPriorSelectionPayment?: boolean }) {
   const router = useRouter();
   const uniqueAssets = assets.filter((a, i, arr) => arr.findIndex((x) => x.preview_path === a.preview_path) === i);
   const selectedAssets = uniqueAssets.filter((a) => a.generation_type !== "recommendation");
@@ -67,6 +67,9 @@ export function SelectionGrid({ orderId, assets, hasPriorSelectionPayment }: { o
   const [saving, setSaving] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<OrderAsset | null>(null);
   const [mounted, setMounted] = useState(false);
+  const [idPhotos, setIdPhotos] = useState<OrderAsset[]>(idPhotoAssets ?? []);
+  const [idPhotoPolling, setIdPhotoPolling] = useState(false);
+  const [idPhotoMessage, setIdPhotoMessage] = useState("");
   const unlockedCount = useMemo(() => Array.from(selected).filter((id) => assets.find((a) => a.id === id)?.is_unlocked).length, [selected, assets]);
   const newCount = selected.size - unlockedCount;
   const totalFreeCount = useMemo(() => Math.floor(selected.size / 10), [selected]);
@@ -82,6 +85,42 @@ export function SelectionGrid({ orderId, assets, hasPriorSelectionPayment }: { o
   const promoRemaining = Math.max(0, 10 - (selected.size % 10));
   const hasAnyUnlocked = assets.some((a) => a.is_unlocked);
   useEffect(() => { setMounted(true); }, []);
+
+  // Poll ID photo generation status
+  useEffect(() => {
+    if (!idPhotoAssets?.length) return;
+    setIdPhotos(idPhotoAssets);
+  }, [idPhotoAssets]);
+
+  useEffect(() => {
+    if (idPhotos.length > 0) return;
+    // If no id photos yet, start polling if this order might have id photo tasks
+    let interval: ReturnType<typeof setInterval>;
+    const poll = async () => {
+      try {
+        setIdPhotoPolling(true);
+        const res = await fetch(`/api/orders/${orderId}/id-photo-poll`, { method: "POST" });
+        if (!res.ok) { setIdPhotoPolling(false); return; }
+        const data = await res.json();
+        if (data.results) {
+          const allCompleted = Object.values(data.results as Record<string, { status: string }>).every((r) => r.status === "completed" || r.status === "failed");
+          if (allCompleted) {
+            clearInterval(interval);
+            setIdPhotoPolling(false);
+            // Refresh page to get latest assets
+            router.refresh();
+          } else {
+            setIdPhotoMessage("证件照生成中，请稍候…");
+          }
+        }
+      } catch {
+        setIdPhotoPolling(false);
+      }
+    };
+    poll();
+    interval = setInterval(poll, 8000);
+    return () => clearInterval(interval);
+  }, [orderId, idPhotos.length, router]);
   useEffect(() => {
     if (!previewAsset) return;
     const originalOverflow = document.body.style.overflow;
@@ -109,7 +148,31 @@ export function SelectionGrid({ orderId, assets, hasPriorSelectionPayment }: { o
     setSaving(false);
     if (response.ok) { router.push(`/orders/${orderId}/pay?kind=selection`); router.refresh(); }
   }
+  const hasIdPhotos = idPhotos.length > 0;
+
   return <>
+    {hasIdPhotos ? (
+      <div className="id-photo-section" style={{ marginBottom: 24, padding: "16px 20px", background: "#f0fdf4", borderRadius: 12, border: "1px solid #bbf7d0", display: "flex", gap: 20, alignItems: "flex-start", flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <h3 style={{ margin: "0 0 8px", fontSize: 15, fontWeight: 600, color: "#166534" }}>🎁 赠送高清证件照</h3>
+          <p style={{ margin: 0, fontSize: 13, color: "#15803d" }}>您上传的是生活照，我们已自动为您优化生成高清证件照，可直接下载使用。</p>
+        </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          {idPhotos.map((asset) => (
+            <a key={asset.id} href={`/api/download/${asset.id}`} download className="id-photo-card" style={{ display: "block", textDecoration: "none", textAlign: "center" }}>
+              <div style={{ width: 80, height: 106, borderRadius: 8, overflow: "hidden", border: "2px solid #22c55e", background: "#fff" }}>
+                <img src={previewUrl(asset)} alt={`${asset.person_role === "bride" ? "新娘" : "新郎"}证件照`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+              </div>
+              <span style={{ fontSize: 12, color: "#166534", marginTop: 6, display: "block" }}>{asset.person_role === "bride" ? "新娘证件照" : "新郎证件照"} ↓</span>
+            </a>
+          ))}
+        </div>
+      </div>
+    ) : idPhotoPolling ? (
+      <div style={{ marginBottom: 24, padding: "12px 16px", background: "#fefce8", borderRadius: 10, border: "1px solid #fde047", fontSize: 13, color: "#a16207" }}>
+        ⏳ {idPhotoMessage || "证件照生成中，请稍候…"}
+      </div>
+    ) : null}
     <div className="promo-banner">
       <span className="promo-banner-text">🎁 满 10 张免 1 张</span>
       <span className="promo-banner-hint">

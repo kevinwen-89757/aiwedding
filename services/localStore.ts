@@ -32,6 +32,8 @@ function normalizeOrder(order: LocalOrder): LocalOrder {
     selected_theme_ids: order.selected_theme_ids ?? [],
     uploadedPhoto: order.uploadedPhoto ?? null,
     uploadedPhotos: order.uploadedPhotos ?? {},
+    photo_type: order.photo_type ?? null,
+    id_photo_assets: order.id_photo_assets ?? {},
     generation_jobs: order.generation_jobs ?? [],
     order_assets: (order.order_assets ?? []).map((asset) => {
       const rawGenerationType = asset.generation_type as OrderAsset["generation_type"] | "cover_bonus";
@@ -98,7 +100,7 @@ async function writeStore(store: LocalStore) {
   await writeFile(tmpPath, nextJson, "utf8");
   await rename(tmpPath, ordersJsonPath());
 }
-function str(value: FormDataEntryValue | null) { return typeof value === "string" && value.trim() ? value.trim() : null; }
+function str(value: FormDataEntryValue | null | undefined) { return typeof value === "string" && value.trim() ? value.trim() : null; }
 
 export async function listLocalOrders() { return (await readStore()).orders.sort((a, b) => b.created_at.localeCompare(a.created_at)); }
 
@@ -115,9 +117,11 @@ export async function getLocalOrder(orderId: string) {
   }
   return (await readStore()).orders.find((order) => order.id === orderId) ?? null;
 }
-export async function createLocalOrder(input: { customerName: FormDataEntryValue | null; customerPhone: FormDataEntryValue | null; customerEmail: FormDataEntryValue | null }) {
+export async function createLocalOrder(input: { customerName: FormDataEntryValue | null; customerPhone: FormDataEntryValue | null; customerEmail: FormDataEntryValue | null; photoType?: FormDataEntryValue | null }) {
   const now = new Date().toISOString();
-  const order: LocalOrder = { id: randomUUID(), customer_name: str(input.customerName), customer_phone: str(input.customerPhone), customer_email: str(input.customerEmail), status: "pending_theme", deposit_amount_cents: 990, selected_count: 0, selection_amount_cents: 0, selected_theme_ids: [], uploadedPhoto: null, uploadedPhotos: {}, admin_note: null, reject_reason: null, created_at: now, updated_at: now, order_assets: [], payments: [] };
+  const photoTypeValue = str(input.photoType);
+  const photo_type: Order["photo_type"] = photoTypeValue === "id_photo" || photoTypeValue === "casual_photo" ? photoTypeValue : null;
+  const order: LocalOrder = { id: randomUUID(), customer_name: str(input.customerName), customer_phone: str(input.customerPhone), customer_email: str(input.customerEmail), status: "pending_theme", deposit_amount_cents: 990, selected_count: 0, selection_amount_cents: 0, selected_theme_ids: [], uploadedPhoto: null, uploadedPhotos: {}, photo_type, id_photo_assets: {}, admin_note: null, reject_reason: null, created_at: now, updated_at: now, order_assets: [], payments: [] };
   if (isSupabaseStore()) {
     await saveSupabaseOrder(order);
     return order;

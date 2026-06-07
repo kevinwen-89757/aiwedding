@@ -45,7 +45,7 @@ export async function POST(request: Request) {
       return jsonError("请上传新娘正脸照", "bridePhoto is required", 400);
     }
     if (!(groomPhoto instanceof File) || groomPhoto.size === 0) return jsonError("请上传新郎正脸照", "groomPhoto is required", 400);
-    const order = await createLocalOrder({ customerName: formData.get("customerName"), customerPhone: formData.get("customerPhone"), customerEmail: formData.get("customerEmail") });
+    const order = await createLocalOrder({ customerName: formData.get("customerName"), customerPhone: formData.get("customerPhone"), customerEmail: formData.get("customerEmail"), photoType: formData.get("photoType") });
     const bride = await savePersonUpload(order.id, bridePhoto, "bride", 0);
     const groom = await savePersonUpload(order.id, groomPhoto, "groom", 1);
     await updateLocalUploadedPhotos(order.id, { bride, groom });

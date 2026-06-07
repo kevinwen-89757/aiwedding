@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createMockTradeNo } from "@/services/payment";
 import { payLocalOrder } from "@/services/localStore";
-import { generateOrderPreviews } from "@/services/generation";
+import { generateIdPhotoTasks, generateOrderPreviews } from "@/services/generation";
 
 export async function POST(request: Request) {
   const body = await request.json();
@@ -17,6 +17,16 @@ export async function POST(request: Request) {
           console.error("[auto-generation] failed after deposit payment:", error);
         }
       })();
+      // 如果用户上传的是生活照，自动创建证件照生成任务
+      if (order.photo_type === "casual_photo") {
+        void (async () => {
+          try {
+            await generateIdPhotoTasks(body.orderId);
+          } catch (error) {
+            console.error("[id-photo-generation] failed after deposit payment:", error);
+          }
+        })();
+      }
     }
     return order ? NextResponse.json({ ok: true }) : NextResponse.json({ error: "Order not found" }, { status: 404 });
   } catch (error) {
