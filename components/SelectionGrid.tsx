@@ -95,7 +95,6 @@ export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectio
   useEffect(() => {
     if (idPhotos.length > 0) return;
     // If no id photos yet, start polling if this order might have id photo tasks
-    let interval: ReturnType<typeof setInterval>;
     const poll = async () => {
       try {
         setIdPhotoPolling(true);
@@ -117,8 +116,8 @@ export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectio
         setIdPhotoPolling(false);
       }
     };
+    const interval = setInterval(poll, 8000);
     poll();
-    interval = setInterval(poll, 8000);
     return () => clearInterval(interval);
   }, [orderId, idPhotos.length, router]);
   useEffect(() => {
