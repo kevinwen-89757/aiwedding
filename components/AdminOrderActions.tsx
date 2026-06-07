@@ -1,5 +1,5 @@
 "use client";
-import { RefreshCw, Rocket, Save, XCircle } from "lucide-react";
+import { RefreshCw, Droplets, Rocket, Save, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import type { OrderStatus } from "@/lib/types";
@@ -58,7 +58,25 @@ export function AdminOrderActions({ orderId, hasGenerated, status, hasThemes, ad
     }
     setBusy("");
   }
-  return <div className="card"><h2>后台操作</h2>{!hasThemes ? <div className="error-box">当前订单未选择风格，请先让用户选择风格后再生成。</div> : null}<label>管理备注<textarea value={adminNoteValue} onChange={(event)=>setAdminNoteValue(event.target.value)} rows={3} /></label><label>作废原因<textarea value={rejectReason} onChange={(event)=>setRejectReason(event.target.value)} rows={3} /></label>{error ? <div className="error-box">{error}</div> : null}<div className="actions"><button className="secondary" onClick={()=>confirmPayment("confirm_deposit")} disabled={!!busy}><Save size={18} />标记试看费已支付</button><button className="secondary" onClick={()=>confirmPayment("confirm_selection")} disabled={!!busy || !hasGenerated}><Save size={18} />标记选片费已支付</button>{hasActiveTask ? <button className="secondary" onClick={pollGeneration} disabled={!!busy}><RefreshCw size={18} />{busy === "poll" ? "查询中..." : "查询生成结果"}</button> : null}{hasThemes ? <button className="secondary" onClick={()=>startGeneration("regenerate")} disabled={!!busy || !canStartGeneration} title={!canStartGeneration && status === "generating" ? "当前正在生成中，请稍候" : undefined}><RefreshCw size={18} />{generationButtonText}</button> : null}{status === "generating" && (
+  async function regenerateWatermarks() {
+    const ok = confirm("确定要重新生成水印吗？\n\n这会用当前水印设置（aiwedding.space / 40%透明度）重新生成所有预览图。\n原图不会被修改。");
+    if (!ok) return;
+    setBusy("regen_watermark"); setError("");
+    const response = await fetch(`/api/admin/orders/${orderId}/regenerate-watermarks`, { method: "POST" });
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      setError(body.error ?? "水印更新失败");
+    } else {
+      const data = await response.json();
+      alert(`水印更新完成！\n成功 ${data.updated}/${data.total} 张${data.errors?.length ? `\n失败：${data.errors.join("\n")}` : ""}`);
+      router.refresh();
+    }
+    setBusy("");
+  }
+  return <div className="card"><h2>后台操作</h2>{!hasThemes ? <div className="error-box">当前订单未选择风格，请先让用户选择风格后再生成。</div> : null}<label>管理备注<textarea value={adminNoteValue} onChange={(event)=>setAdminNoteValue(event.target.value)} rows={3} /></label><label>作废原因<textarea value={rejectReason} onChange={(event)=>setRejectReason(event.target.value)} rows={3} /></label>{error ? <div className="error-box">{error}</div> : null}<div className="actions"><button className="secondary" onClick={regenerateWatermarks} disabled={!!busy || !hasGenerated} title="用当前水印设置重新生成所有预览图">
+          <Droplets size={18} />{busy === "regen_watermark" ? "更新中..." : "更新水印"}
+        </button>
+      <button className="secondary" onClick={()=>confirmPayment("confirm_deposit")} disabled={!!busy}><Save size={18} />标记试看费已支付</button><button className="secondary" onClick={()=>confirmPayment("confirm_selection")} disabled={!!busy || !hasGenerated}><Save size={18} />标记选片费已支付</button>{hasActiveTask ? <button className="secondary" onClick={pollGeneration} disabled={!!busy}><RefreshCw size={18} />{busy === "poll" ? "查询中..." : "查询生成结果"}</button> : null}{hasThemes ? <button className="secondary" onClick={()=>startGeneration("regenerate")} disabled={!!busy || !canStartGeneration} title={!canStartGeneration && status === "generating" ? "当前正在生成中，请稍候" : undefined}><RefreshCw size={18} />{generationButtonText}</button> : null}{status === "generating" && (
         <button className="danger" onClick={forceRelease} disabled={!!busy} title="将未完成的生成任务舍弃，直接让顾客进入选片">
           <Rocket size={18} />{busy === "force_release" ? "处理中..." : "强制上线"}
         </button>

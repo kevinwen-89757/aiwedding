@@ -124,3 +124,14 @@ export async function readStoredFile(relativePath: string) {
   }
   return readFile(absoluteStoragePath(relativePath));
 }
+
+/** Overwrite a file at an existing relativePath (used for re-generating watermarks etc.) */
+export async function overwriteStoredBuffer(relativePath: string, buffer: Buffer) {
+  if (isSupabaseStorage()) {
+    await uploadSupabaseObject(relativePath, buffer, "image/jpeg");
+    return;
+  }
+  const absolutePath = absoluteStoragePath(relativePath);
+  await mkdir(path.dirname(absolutePath), { recursive: true });
+  await writeFile(absolutePath, buffer);
+}

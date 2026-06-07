@@ -5,7 +5,7 @@ import { addLocalAsset, clearLocalGeneratedAssets, getLocalOrder, updateLocalOrd
 import type { LocalOrder } from "@/services/localStore";
 import { generateWeddingImage } from "@/services/gemini";
 import { buildPreviewGenerationPlan, getSelectedThemes } from "@/services/prompts";
-import { readStoredFile, saveGeneratedImage, saveGeneratedImageBuffer, saveGeneratedUpload, savePreviewImageBuffer } from "@/services/storage";
+import { readStoredFile, saveGeneratedImage, saveGeneratedImageBuffer, saveGeneratedUpload, savePreviewImageBuffer, overwriteStoredBuffer } from "@/services/storage";
 import { createWatermarkedPreviewBuffer, imageMetadataFromBuffer } from "@/services/watermark";
 import { apimartCreateGenerationTask, apimartDownloadImage, apimartGetTaskStatus, apimartUploadImage } from "@/services/generation/providers/apimart";
 
@@ -788,4 +788,30 @@ export async function pollIdPhotoTasks(orderId: string) {
   });
 
   return results;
+}
+
+/** Re-generate watermark previews for all generated assets in an order (uses current watermark settings) */
+export async function regenerateOrderWatermarks(orderId: string): Promise<{ updated: number; total: number; errors: string[] }> {
+  const order = await getLocalOrder(orderId);
+  if (!order) throw new Error("Order not found");
+  const assets = order.order_assets.filter((a) => a.kind === "generated" && a.original_path && a.preview_path);
+  if (assets.length === 0) return { updated: 0, total: 0, errors: [] };
+  let updated = 0;
+  const errors: string[] = [];
+  for (const asset of assets) {
+    try {
+      const originalBuffer = await readStoredFile(asset.original_path!);
+      const newPreviewBuffer = await createWatermarkedPreviewBuffer(originalBuffer);
+      await overwriteStoredBuffer(asset.preview_path!, newPreviewBuffer);
+      updated += 1;
+    } catch (err) {
+      errors.push(`#${asset.sort_order}: ${errorSummary(err)}`);
+    }
+  }
+  // Log to admin_note
+  await updateLocalOrder(orderId, (current) => {
+    const notePrefix = current.admin_note ? current.admin_note + "\n" : "";
+    return { ...current, admin_note: `${notePrefix}[${new Date().toISOString()}] 水印批量更新：${updated}/${assets.length} 张成功${errors.length ? `，失败：${errors.join("; ")}` : ""}` };
+  });
+  return { updated, total: assets.length, errors };
 }
