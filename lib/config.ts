@@ -1,7 +1,18 @@
+function detectStorageDriver(): "supabase" | "s3" | "local" {
+  // Explicit override takes precedence
+  if (process.env.STORAGE_DRIVER === "supabase") return "supabase";
+  if (process.env.STORAGE_DRIVER === "s3") return "s3";
+  if (process.env.STORAGE_DRIVER === "local") return "local";
+  // Auto-detect: use supabase if configured (Vercel production default)
+  if (process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL) return "supabase";
+  if (process.env.S3_BUCKET && process.env.S3_ENDPOINT) return "s3";
+  return "local";
+}
+
 export const appConfig = {
   appUrl: process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000",
   localStorageRoot: process.env.LOCAL_STORAGE_ROOT ?? "./storage",
-  storageDriver: process.env.STORAGE_DRIVER === "supabase" ? "supabase" : process.env.STORAGE_DRIVER === "s3" ? "s3" : "local",
+  storageDriver: detectStorageDriver(),
   supabaseUrl: process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL,
   supabaseStorageBucket: process.env.SUPABASE_STORAGE_BUCKET,
   s3Provider: process.env.S3_PROVIDER ?? "s3",

@@ -1,7 +1,5 @@
 import { NextResponse } from "next/server";
-import { S3Client, PutBucketCorsCommand, GetBucketCorsCommand } from "@aws-sdk/client-s3";
 import { appConfig } from "@/lib/config";
-import { createHash } from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -27,66 +25,84 @@ async function handleCors(request: Request, mode: "view" | "setup") {
       return NextResponse.json({ error: "unauthorized" }, { status: 401 });
     }
 
-    const s3Client = new S3Client({
-      region: appConfig.s3Region,
-      endpoint: appConfig.s3Endpoint,
-      credentials: {
-        accessKeyId: appConfig.s3AccessKeyId!,
-        secretAccessKey: appConfig.s3SecretAccessKey!,
-      },
-      forcePathStyle: false,
-    });
+    // Use COS XML API directly with fetch
+    const bucket = appConfig.s3Bucket;
+    const region = appConfig.s3Region;
+    const endpoint = appConfig.s3Endpoint?.replace(/https?:\/\//, "");
+    const host = `${bucket}.${endpoint}`;
 
     if (mode === "view") {
       try {
-        const result = await s3Client.send(
-          new GetBucketCorsCommand({ Bucket: appConfig.s3Bucket })
-        );
-        return NextResponse.json({
-          ok: true,
-          bucket: appConfig.s3Bucket,
-          corsRules: result.CORSRules ?? [],
+        const res = await fetch(`https://${host}/?cors`, {
+          method: "GET",
+          headers: {
+            Host: host,
+          },
         });
+        const xml = await res.text();
+        return NextResponse.json({ ok: true, bucket, xml, status: res.status });
       } catch (err: unknown) {
         const errMsg = err instanceof Error ? err.message : String(err);
-        if (errMsg.includes("NoSuchCORSConfiguration") || errMsg.includes("CORS")) {
-          return NextResponse.json({ ok: true, bucket: appConfig.s3Bucket, corsRules: [], note: "No CORS rules found" });
-        }
-        throw err;
+        return NextResponse.json({ ok: false, bucket, error: errMsg });
       }
     }
 
     // mode === "setup"
-    // COS requires Content-MD5 header for PutBucketCors
-    const corsConfig = {
-      CORSRules: [
-        {
-          AllowedOrigins: [
-            "https://aiwedding.space",
-            "https://www.aiwedding.space",
-            "http://localhost:3000",
-          ],
-          AllowedMethods: ["PUT", "GET", "HEAD"],
-          AllowedHeaders: ["*"],
-          ExposeHeaders: ["ETag", "x-amz-request-id"],
-          MaxAgeSeconds: 3600,
-        },
-      ],
-    };
-    const configXml = JSON.stringify(corsConfig);
-    const contentMd5 = createHash("md5").update(configXml).digest("base64");
+    // Build COS CORS XML
+    const corsXml = `<?xml version="1.0" encoding="UTF-8"?>
+<CORSConfiguration>
+  <CORSRule>
+    <AllowedOrigin>https://aiwedding.space</AllowedOrigin>
+    <AllowedOrigin>https://www.aiwedding.space</AllowedOrigin>
+    <AllowedOrigin>http://localhost:3000</AllowedOrigin>
+    <AllowedMethod>PUT</AllowedMethod>
+    <AllowedMethod>GET</AllowedMethod>
+    <AllowedMethod>HEAD</AllowedMethod>
+    <AllowedHeader>*</AllowedHeader>
+    <ExposeHeader>ETag</ExposeHeader>
+    <ExposeHeader>x-amz-request-id</ExposeHeader>
+    <MaxAgeSeconds>3600</MaxAgeSeconds>
+  </CORSRule>
+</CORSConfiguration>`;
 
-    await s3Client.send(
-      new PutBucketCorsCommand({
-        Bucket: appConfig.s3Bucket,
-        CORSConfiguration: corsConfig,
-        ContentMD5: contentMd5,
-      })
-    );
+    // Calculate MD5
+    const encoder = new TextEncoder();
+    const data = encoder.encode(corsXml);
+    const hashBuffer = await crypto.subtle.digest("MD5", data);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    const contentMd5 = btoa(String.fromCharCode(...hashArray));
 
-    return NextResponse.json({ ok: true, bucket: appConfig.s3Bucket, message: "CORS 已配置，允许 aiwedding.space 浏览器直传 COS" });
+    // Send PUT request to COS
+    const res = await fetch(`https://${host}/?cors`, {
+      method: "PUT",
+      headers: {
+        Host: host,
+        "Content-Type": "application/xml",
+        "Content-MD5": contentMd5,
+        Authorization: `Bearer ${appConfig.s3AccessKeyId}:${appConfig.s3SecretAccessKey}`,
+      },
+      body: corsXml,
+    });
+
+    const responseText = await res.text();
+
+    if (res.ok) {
+      return NextResponse.json({
+        ok: true,
+        bucket,
+        message: "CORS 已配置，允许 aiwedding.space 浏览器直传 COS",
+      });
+    } else {
+      return NextResponse.json(
+        { error: "COS API error", status: res.status, response: responseText },
+        { status: 500 }
+      );
+    }
   } catch (error) {
     console.error("[setup-cors] 失败:", error);
-    return NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 });
+    return NextResponse.json(
+      { error: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
   }
 }
