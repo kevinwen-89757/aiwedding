@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { S3Client, PutBucketCorsCommand, GetBucketCorsCommand } from "@aws-sdk/client-s3";
 import { appConfig } from "@/lib/config";
+import { createHash } from "crypto";
 
 export const dynamic = "force-dynamic";
 
@@ -56,29 +57,30 @@ async function handleCors(request: Request, mode: "view" | "setup") {
     }
 
     // mode === "setup"
+    // COS requires Content-MD5 header for PutBucketCors
+    const corsConfig = {
+      CORSRules: [
+        {
+          AllowedOrigins: [
+            "https://aiwedding.space",
+            "https://www.aiwedding.space",
+            "http://localhost:3000",
+          ],
+          AllowedMethods: ["PUT", "GET", "HEAD"],
+          AllowedHeaders: ["*"],
+          ExposeHeaders: ["ETag", "x-amz-request-id"],
+          MaxAgeSeconds: 3600,
+        },
+      ],
+    };
+    const configXml = JSON.stringify(corsConfig);
+    const contentMd5 = createHash("md5").update(configXml).digest("base64");
+
     await s3Client.send(
       new PutBucketCorsCommand({
         Bucket: appConfig.s3Bucket,
-        CORSConfiguration: {
-          CORSRules: [
-            {
-              AllowedOrigins: [
-                "https://aiwedding.space",
-                "https://www.aiwedding.space",
-                "http://localhost:3000",
-              ],
-              AllowedMethods: ["PUT", "GET", "HEAD"],
-              AllowedHeaders: [
-                "Content-Type",
-                "Content-Length",
-                "x-amz-*",
-                "x-amz-sdk-checksum-algorithm",
-              ],
-              ExposeHeaders: ["ETag", "x-amz-request-id"],
-              MaxAgeSeconds: 3600,
-            },
-          ],
-        },
+        CORSConfiguration: corsConfig,
+        ContentMD5: contentMd5,
       })
     );
 
