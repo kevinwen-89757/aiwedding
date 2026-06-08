@@ -14,9 +14,9 @@ function homeCarouselImages() {
 export default function HomePage() {
   const images = homeCarouselImages();
   return (
-    <main>
+    <main style={{ maxWidth: 960, margin: "0 auto" }}>
       <SiteVisitTracker page="home" />
-      <section className="shell hero">
+      <section className="shell hero" style={{ width: "100%" }}>
         <div>
           <p className="eyebrow">AI Wedding Studio</p>
           <h1>

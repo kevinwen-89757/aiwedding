@@ -123,23 +123,25 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
           <h2>API 生成记录</h2>
           <div className="grid">
             {order.admin_note ? (
-              <div className="card">
+              <div className="card" style={{ maxHeight: 500, display: "flex", flexDirection: "column" }}>
                 <h3>生成管理日志</h3>
-                <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: 13, lineHeight: 1.6, maxHeight: 400, overflow: "auto", background: "#f8f9fa", padding: 12, borderRadius: 8 }}>{order.admin_note}</pre>
+                <pre style={{ flex: 1, whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: 13, lineHeight: 1.6, overflow: "auto", background: "#f8f9fa", padding: 12, borderRadius: 8, minHeight: 200 }}>{order.admin_note}</pre>
               </div>
             ) : null}
             {generationJobs.length > 0 ? (
-              <div className="card">
+              <div className="card" style={{ maxHeight: 500, display: "flex", flexDirection: "column" }}>
                 <h3>APIMart 任务详情</h3>
-                <div style={{ display: "grid", gap: 8 }}>
-                  {generationJobs.map((job) => (
-                    <div key={job.task_id || job.image_number} style={{ padding: "8px 12px", background: "#f8f9fa", borderRadius: 8, fontSize: 13 }}>
-                      <strong>图 {job.image_number}</strong> · 状态：{job.status} · 查询 {job.poll_count} 次
-                      {job.error ? <div style={{ color: "#dc2626", marginTop: 4 }}>{job.error}</div> : null}
-                      {job.result_image_url ? <div style={{ color: "#16a34a", marginTop: 4 }}>结果图：{job.result_image_url.slice(0, 60)}...</div> : null}
-                      <div style={{ color: "#888", marginTop: 4, fontSize: 12 }}>task_id: {job.task_id}</div>
-                    </div>
-                  ))}
+                <div style={{ flex: 1, overflow: "auto", minHeight: 200 }}>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {generationJobs.map((job) => (
+                      <div key={job.task_id || job.image_number} style={{ padding: "8px 12px", background: "#f8f9fa", borderRadius: 8, fontSize: 13 }}>
+                        <strong>图 {job.image_number}</strong> · 状态：{job.status} · 查询 {job.poll_count} 次
+                        {job.error ? <div style={{ color: "#dc2626", marginTop: 4 }}>{job.error}</div> : null}
+                        {job.result_image_url ? <div style={{ color: "#16a34a", marginTop: 4 }}>结果图：{job.result_image_url.slice(0, 60)}...</div> : null}
+                        <div style={{ color: "#888", marginTop: 4, fontSize: 12 }}>task_id: {job.task_id}</div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </div>
             ) : null}

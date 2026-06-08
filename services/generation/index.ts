@@ -173,8 +173,17 @@ function apiProgressNote(lines: string[]) {
 
 function appendApiProgressNoteText(current: string | null, lines: string[]) {
   const base = current?.startsWith("API 生成记录") ? current : apiProgressNote([]);
+  // Use China timezone (Asia/Shanghai) for timestamps, regardless of server location
   const now = new Date();
-  const timeStr = `${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+  const timeStr = now.toLocaleString("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  }).replace(/\//g, "-");
   const timestampedLines = lines.map((line) => `[${timeStr}] ${line}`);
   const next = [base, ...timestampedLines].filter(Boolean).join("\n");
   return next.length > 10000 ? next.slice(next.length - 10000) : next;
@@ -487,15 +496,11 @@ export async function pollApiGeneration(orderId: string) {
   }
   if (!jobs.length) throw new Error("当前订单没有可查询的 APIMart task_id。");
 
-  for (const job of jobs) {
-    if (job.status === "completed") {
-      await appendApiProgress(orderId, [`图 ${job.image_number} 已完成，跳过重复保存。`]);
-      continue;
-    }
-    if (job.status === "failed") {
-      await appendApiProgress(orderId, [`图 ${job.image_number} 已失败，跳过查询：${job.error ?? "未记录错误"}`]);
-      continue;
-    }
+  // Parallel: process all pending jobs concurrently to speed up large batches (e.g. 27 images)
+  const pendingJobs = jobs.filter((job) => job.status !== "completed" && job.status !== "failed");
+  await appendApiProgress(orderId, [`并行处理 ${pendingJobs.length} 个未完成的任务...`]);
+
+  await Promise.allSettled(pendingJobs.map(async (job) => {
     const pollCount = job.poll_count + 1;
     try {
       const result = await apimartGetTaskStatus(job.task_id);
@@ -555,7 +560,7 @@ export async function pollApiGeneration(orderId: string) {
         admin_note: appendApiProgressNoteText(current.admin_note, [`图 ${job.image_number} 查询失败：${message}`])
       }));
     }
-  }
+  }));
 
   const latest = await getLocalOrder(orderId);
   if (!latest) throw new Error("Order not found");
