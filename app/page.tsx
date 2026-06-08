@@ -16,7 +16,7 @@ export default function HomePage() {
   return (
     <main style={{ maxWidth: 960, margin: "0 auto" }}>
       <SiteVisitTracker page="home" />
-      <section className="shell hero" style={{ width: "100%" }}>
+      <section className="section hero" style={{ width: "100%" }}>
         <div>
           <p className="eyebrow">AI Wedding Studio</p>
           <h1>
@@ -40,7 +40,7 @@ export default function HomePage() {
         </div>
         <HomeCarousel images={images} />
       </section>
-      <section className="shell section">
+      <section className="section" style={{ width: "100%" }}>
         <h2>从上传到下载，流程清楚省心。</h2>
         <div className="grid">
           <article className="card step-card">
@@ -66,7 +66,7 @@ export default function HomePage() {
           </article>
         </div>
       </section>
-      <section className="shell section pain-section">
+      <section className="section pain-section" style={{ width: "100%" }}>
         <h2>为什么越来越多人选择 AI 婚纱写真？</h2>
         <p className="lead">
           很多人不是不想拍好看的照片，而是不想再经历一整天的折腾。
@@ -114,7 +114,7 @@ export default function HomePage() {
           </article>
         </div>
       </section>
-      <section id="pricing" className="shell section">
+      <section id="pricing" className="section" style={{ width: "100%" }}>
         <h2>先试看，再决定买哪张。</h2>
         <div className="grid">
           <article className="card price-card">
@@ -141,7 +141,7 @@ export default function HomePage() {
           </article>
         </div>
       </section>
-      <section id="style-preview" className="shell section home-theme-section">
+      <section id="style-preview" className="section home-theme-section" style={{ maxWidth: 960, width: "100%", margin: "0 auto", padding: "0 20px", boxSizing: "border-box" }}>
         <p className="eyebrow">Style preview</p>
         <h2>看看你可以解锁哪些婚纱写真风格</h2>
         <p className="lead">先预览风格样片，再上传正脸照生成专属预览。</p>
