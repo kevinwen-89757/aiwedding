@@ -24,7 +24,9 @@ function stripRuntimeInstructionFromPrompt(prompt: string | null) {
   return runtimeInstructionLines.reduce((value, line) => value.replaceAll(`\n${line}`, "").replaceAll(line, ""), prompt).trim();
 }
 function isSupabaseStore() {
-  return appConfig.storageDriver === "supabase";
+  // 只要配置了 Supabase URL，就优先使用 Supabase 存储订单数据
+  // 不受 STORAGE_DRIVER 环境变量影响
+  return Boolean(appConfig.supabaseUrl);
 }
 function normalizeOrder(order: LocalOrder): LocalOrder {
   return {
