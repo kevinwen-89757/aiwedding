@@ -166,15 +166,25 @@ export async function saveGeneratedImage(buffer: Buffer, orderId: string, index:
   return { relativePath, absolutePath, mimeType: "image/png" };
 }
 
-export async function saveGeneratedImageBuffer(buffer: Buffer, orderId: string, index: number, mimeType = "image/png", taskSuffix?: string): Promise<StoredFile> {
+export async function saveGeneratedImageBuffer(buffer: Buffer, orderId: string, index: number, mimeType = "image/png", taskSuffix?: string, fallbackUrl?: string): Promise<StoredFile> {
   const ext = mimeType === "image/jpeg" ? ".jpg" : mimeType === "image/webp" ? ".webp" : ".png";
   const fileBase = taskSuffix ? `${String(index + 1).padStart(2, "0")}-${taskSuffix}` : String(index + 1).padStart(2, "0");
   const relativePath = isRemoteStorage()
     ? `orders/${orderId}/generated/original/${fileBase}${ext}`
     : `generated/${orderId}/${fileBase}${ext}`;
   if (isRemoteStorage()) {
-    await uploadRemoteObject(relativePath, buffer, mimeType);
-    return { relativePath, absolutePath: null, mimeType };
+    try {
+      await uploadRemoteObject(relativePath, buffer, mimeType);
+      return { relativePath, absolutePath: null, mimeType };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[storage] uploadRemoteObject failed for ${relativePath}: ${msg}. Using fallback URL if available.`);
+      // If fallbackUrl provided, use it as the path (readStoredFile will fetch from URL)
+      if (fallbackUrl) {
+        return { relativePath: fallbackUrl, absolutePath: null, mimeType };
+      }
+      throw err;
+    }
   }
   const absolutePath = absoluteStoragePath(relativePath);
   await mkdir(path.dirname(absolutePath), { recursive: true });
@@ -200,14 +210,23 @@ export async function saveGeneratedUpload(file: File, orderId: string, index: nu
   return { relativePath, absolutePath, mimeType: file.type };
 }
 
-export async function savePreviewImageBuffer(buffer: Buffer, orderId: string, imageNumber: number, taskSuffix?: string) {
+export async function savePreviewImageBuffer(buffer: Buffer, orderId: string, imageNumber: number, taskSuffix?: string, fallbackUrl?: string) {
   const fileBase = taskSuffix ? `${String(imageNumber).padStart(2, "0")}-${taskSuffix}` : String(imageNumber).padStart(2, "0");
   const relativePath = isRemoteStorage()
     ? `orders/${orderId}/generated/preview/${fileBase}.jpg`
     : `previews/${orderId}/${fileBase}.jpg`;
   if (isRemoteStorage()) {
-    await uploadRemoteObject(relativePath, buffer, "image/jpeg");
-    return { relativePath, absolutePath: null, mimeType: "image/jpeg" };
+    try {
+      await uploadRemoteObject(relativePath, buffer, "image/jpeg");
+      return { relativePath, absolutePath: null, mimeType: "image/jpeg" };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[storage] uploadRemoteObject failed for preview ${relativePath}: ${msg}. Using fallback URL if available.`);
+      if (fallbackUrl) {
+        return { relativePath: fallbackUrl, absolutePath: null, mimeType: "image/jpeg" };
+      }
+      throw err;
+    }
   }
   const absolutePath = absoluteStoragePath(relativePath);
   await mkdir(path.dirname(absolutePath), { recursive: true });
@@ -216,6 +235,12 @@ export async function savePreviewImageBuffer(buffer: Buffer, orderId: string, im
 }
 
 export async function readStoredFile(relativePath: string) {
+  // Support external URLs (e.g. APIMart direct image URLs) as stored paths
+  if (relativePath.startsWith("http://") || relativePath.startsWith("https://")) {
+    const response = await fetch(relativePath, { signal: AbortSignal.timeout(30000) });
+    if (!response.ok) throw new Error(`Failed to fetch image from URL: ${relativePath}, status: ${response.status}`);
+    return Buffer.from(await response.arrayBuffer());
+  }
   if (isRemoteStorage()) {
     return readRemoteObject(relativePath);
   }

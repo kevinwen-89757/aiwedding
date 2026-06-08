@@ -403,16 +403,38 @@ async function saveCompletedApiJob(orderId: string, job: GenerationJob, imageUrl
   const taskSuffix = job.task_id.replace(/^create-failed-/, "").slice(0, 8);
   await appendApiProgress(orderId, [`APIMart 返回图片 URL：${imageUrl}`, `图 ${job.image_number} 正在下载生成图。`]);
   const downloaded = await apimartDownloadImage(imageUrl);
-  const generated = await saveGeneratedImageBuffer(downloaded.buffer, orderId, job.image_number - 1, downloaded.mimeType, taskSuffix);
-  await appendApiProgress(orderId, [`图 ${job.image_number} 原图已保存到 Supabase Storage：${generated.relativePath}`]);
-  const preview = await savePreviewImageBuffer(await createWatermarkedPreviewBuffer(downloaded.buffer), orderId, job.image_number, taskSuffix);
-  await appendApiProgress(orderId, [`图 ${job.image_number} 水印预览图已保存到 Supabase Storage：${preview.relativePath}`]);
+
+  // Try to upload to remote storage; if it fails (e.g. Vercel 10s timeout on S3/COS), fallback to APIMart URL
+  let generatedRelativePath: string;
+  let previewRelativePath: string;
+  try {
+    const generated = await saveGeneratedImageBuffer(downloaded.buffer, orderId, job.image_number - 1, downloaded.mimeType, taskSuffix);
+    generatedRelativePath = generated.relativePath;
+    await appendApiProgress(orderId, [`图 ${job.image_number} 原图已保存到 Storage：${generated.relativePath}`]);
+  } catch (uploadErr) {
+    const msg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+    console.warn(`[saveCompletedApiJob] original upload failed for job ${job.image_number}, using APIMart URL fallback: ${msg}`);
+    generatedRelativePath = imageUrl; // fallback: use APIMart URL directly
+    await appendApiProgress(orderId, [`图 ${job.image_number} 原图上传 Storage 失败（${msg}），已使用 APIMart 临时 URL 作为备用。`]);
+  }
+
+  try {
+    const preview = await savePreviewImageBuffer(await createWatermarkedPreviewBuffer(downloaded.buffer), orderId, job.image_number, taskSuffix);
+    previewRelativePath = preview.relativePath;
+    await appendApiProgress(orderId, [`图 ${job.image_number} 水印预览图已保存到 Storage：${preview.relativePath}`]);
+  } catch (uploadErr) {
+    const msg = uploadErr instanceof Error ? uploadErr.message : String(uploadErr);
+    console.warn(`[saveCompletedApiJob] preview upload failed for job ${job.image_number}, using original APIMart URL fallback: ${msg}`);
+    previewRelativePath = imageUrl; // fallback: use original APIMart URL (no watermark)
+    await appendApiProgress(orderId, [`图 ${job.image_number} 水印预览图上传 Storage 失败（${msg}），已使用 APIMart 原图 URL 作为备用。`]);
+  }
+
   const metadata = await imageMetadataFromBuffer(downloaded.buffer);
   await addLocalAsset(orderId, {
     kind: "generated",
-    original_path: generated.relativePath,
-    preview_path: preview.relativePath,
-    mime_type: generated.mimeType,
+    original_path: generatedRelativePath,
+    preview_path: previewRelativePath,
+    mime_type: downloaded.mimeType,
     width: metadata.width,
     height: metadata.height,
     generation_prompt: job.raw_prompt,
