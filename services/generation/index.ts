@@ -286,6 +286,7 @@ export async function startApiGeneration(order: LocalOrder) {
   if (!bride || !groom) throw new Error("缺少新娘或新郎正脸照，无法生成。");
   if (!order.selected_theme_ids?.length) throw new Error("当前订单未选择风格，请先选择风格后再生成。");
 
+  // 先标记为 generating，避免重复触发
   await updateLocalOrder(order.id, (current) => ({
     ...current,
     status: "generating",
@@ -309,130 +310,82 @@ export async function startApiGeneration(order: LocalOrder) {
     orderId: order.id,
     plannedTaskCount: runtimeConfig.plannedTaskCount,
     planLength: plan.length,
-    effectiveLimit: runtimeConfig.effectiveLimit,
     resolution: runtimeConfig.apimartResolution,
     timeoutMs: runtimeConfig.apimartTimeoutMs
   });
 
+  const progressLines: string[] = [];
+
+  // 上传照片
   const brideImageUrl = await apimartUploadImage({
     buffer: brideReference,
     mimeType: bride.mime_type,
     filename: path.basename(bride.original_path)
   });
-  await updateLocalOrderStatus(order.id, "generating", { admin_note: apiProgressNote([`新娘正脸照已传到 APIMart：${brideImageUrl}`, "准备上传新郎正脸照。"]) });
+  progressLines.push(`新娘正脸照已传到 APIMart：${brideImageUrl}`);
 
-  console.log("[start-generation] 开始上传新郎照片...", { groomSize: `${(groomReference.length / 1024).toFixed(0)}KB` });
   const groomImageUrl = await apimartUploadImage({
     buffer: groomReference,
     mimeType: groom.mime_type,
     filename: path.basename(groom.original_path)
   });
-  await updateLocalOrderStatus(order.id, "generating", {
-    admin_note: apiProgressNote([
-      `新娘正脸照已传到 APIMart：${brideImageUrl}`,
-      `新郎正脸照已传到 APIMart：${groomImageUrl}`,
-      `计划任务数：${runtimeConfig.plannedTaskCount}`,
-      `plan.length=${plan.length}`,
-      `effectiveLimit=${runtimeConfig.effectiveLimit ?? "未设置"}`,
-      `本次 resolution=${appConfig.apimartResolution}`,
-      `本次 timeoutMs=${Number.isFinite(appConfig.apimartTimeoutMs) ? appConfig.apimartTimeoutMs : 300000}`
-    ])
-  });
+  progressLines.push(`新郎正脸照已传到 APIMart：${groomImageUrl}`);
 
+  // 创建任务（批量，不重复写 Supabase）
   const jobs: GenerationJob[] = [];
   for (let index = 0; index < plan.length; index += 1) {
     const item = plan[index];
-    // Guard: 跳过空 prompt，防止 APIMart 返回 400
     if (!item.rawPrompt || item.rawPrompt.trim().length === 0) {
       const message = `图 ${item.imageNumber} prompt 为空，已跳过。请检查「${item.themeName}」风格的「${item.promptName}」prompt 是否已填写。`;
-      console.error("[apimart] empty prompt skipped", { orderId: order.id, imageNumber: item.imageNumber, themeName: item.themeName, promptName: item.promptName });
-      const job = buildGenerationJob(item, index, {
+      console.error("[apimart] empty prompt skipped", { orderId: order.id, imageNumber: item.imageNumber });
+      jobs.push(buildGenerationJob(item, index, {
         taskId: `empty-prompt-${order.id}-${item.imageNumber}`,
         status: "failed",
         error: message
-      });
-      jobs.push(job);
-      await updateLocalOrder(order.id, (current) => ({
-        ...current,
-        status: "generating",
-        generation_jobs: jobs,
-        admin_note: appendApiProgressNoteText(current.admin_note, [message])
       }));
+      progressLines.push(message);
       continue;
     }
-    await updateLocalOrder(order.id, (current) => ({
-      ...current,
-      status: "generating",
-      generation_jobs: jobs,
-      admin_note: appendApiProgressNoteText(current.admin_note, [
-        `准备创建图 ${item.imageNumber} / ${plan.length}。`
-      ])
-    }));
     try {
       const task = await apimartCreateGenerationTask({
         prompt: item.rawPrompt,
         uploadedImageUrls: [brideImageUrl, groomImageUrl],
         aspectRatio: item.aspectRatio
       });
-      console.log("[apimart] task created", {
-        orderId: order.id,
-        taskId: task.taskId,
-        index,
-        imageNumber: item.imageNumber,
-        themeName: item.themeName,
-        aspectRatio: item.aspectRatio
-      });
-      const job = buildGenerationJob(item, index, {
+      console.log("[apimart] task created", { orderId: order.id, taskId: task.taskId, imageNumber: item.imageNumber });
+      jobs.push(buildGenerationJob(item, index, {
         taskId: task.taskId,
         status: "created",
         error: null
-      });
-      jobs.push(job);
-      await updateLocalOrder(order.id, (current) => ({
-        ...current,
-        status: "generating",
-        generation_jobs: jobs,
-        admin_note: appendApiProgressNoteText(current.admin_note, [
-          `图 ${item.imageNumber} task_id：${task.taskId}`,
-          `图 ${item.imageNumber} 已进入 APIMart 队列，等待后续查询。`
-        ])
       }));
+      progressLines.push(`图 ${item.imageNumber} task_id：${task.taskId}`);
     } catch (error) {
       const message = errorSummary(error);
-      console.error("[apimart] task create failed", {
-        orderId: order.id,
-        index,
-        imageNumber: item.imageNumber,
-        error: message
-      });
-      const job = buildGenerationJob(item, index, {
+      console.error("[apimart] task create failed", { orderId: order.id, imageNumber: item.imageNumber, error: message });
+      jobs.push(buildGenerationJob(item, index, {
         taskId: `create-failed-${order.id}-${item.imageNumber}`,
         status: "failed",
         error: message
-      });
-      jobs.push(job);
-      await updateLocalOrder(order.id, (current) => ({
-        ...current,
-        status: "generating",
-        generation_jobs: jobs,
-        admin_note: appendApiProgressNoteText(current.admin_note, [
-          `图 ${item.imageNumber} 创建任务失败：${message}`
-        ])
       }));
+      progressLines.push(`图 ${item.imageNumber} 创建任务失败：${message}`);
     }
   }
 
   const createdCount = jobs.filter((job) => job.status !== "failed").length;
   const failedCount = jobs.length - createdCount;
+  progressLines.push(
+    `任务创建循环结束：计划 ${plan.length} 个，成功 ${createdCount} 个，失败 ${failedCount} 个。`,
+    createdCount > 0 ? "请点击“查询生成结果”，或刷新后台继续查询。" : "所有 APIMart 任务创建失败。"
+  );
+
+  // 只在最后一次性保存，避免 Vercel 10s 超时
   await updateLocalOrder(order.id, (current) => ({
     ...current,
     status: createdCount > 0 ? "generating" : "generation_failed",
     generation_jobs: jobs,
-    admin_note: appendApiProgressNoteText(current.admin_note, [
-      `任务创建循环结束：计划 ${plan.length} 个，成功 ${createdCount} 个，失败 ${failedCount} 个，generation_jobs.length=${jobs.length}。`,
-      createdCount > 0 ? "请点击“查询生成结果”，或刷新后台继续查询。" : "所有 APIMart 任务创建失败，订单已标记 generation_failed。"
-    ])
+    admin_note: appendApiProgressNoteText(current.admin_note, progressLines)
   }));
+
   return getLocalOrder(order.id);
 }
 
