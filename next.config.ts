@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  serverExternalPackages: ["sharp", "@aws-sdk/client-s3"],
+  serverExternalPackages: ["sharp"],
   outputFileTracingExcludes: {
     "*": ["public/demo/**/*", "public/carousel/**/*"],
   },
