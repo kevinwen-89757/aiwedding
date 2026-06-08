@@ -28,21 +28,80 @@ export default async function OrderLookupPage({ searchParams }: PageProps) {
       </section>
 
       <section className="card" style={{ padding: "24px 28px" }}>
-        <form className="form" method="GET" action="/orders" style={{ margin: 0 }}>
-          <div className="form-row">
+        {/* 姓名+手机号同行 */}
+        <form className="form" method="GET" action="/orders" id="order-lookup-form" style={{ margin: 0 }}>
+          <div className="query-form-row">
             <label>
-              <span className="field-label">姓名</span>
-              <input name="name" defaultValue={name} placeholder="如：张三" required />
+              <span className="field-label">姓名 <RequiredMark /></span>
+              <input
+                name="name"
+                defaultValue={name}
+                placeholder="如：张三"
+                pattern="[\u4e00-\u9fa5a-zA-Z\s]+"
+                title="姓名只能包含中文或英文字母"
+                required
+              />
             </label>
-          </div>
-          <div className="form-row">
             <label>
-              <span className="field-label">手机号</span>
-              <input name="phone" defaultValue={phone} placeholder="下单时填写的手机号" required />
+              <span className="field-label">手机号 <RequiredMark /></span>
+              <input
+                name="phone"
+                defaultValue={phone}
+                placeholder="下单时填写的手机号"
+                pattern="1[3-9]\d{9}"
+                title="请输入11位手机号码"
+                inputMode="tel"
+                maxLength={11}
+                required
+              />
             </label>
           </div>
           <button type="submit">验证并查询</button>
         </form>
+        {/* Apple 极简校验提示 */}
+        <div id="apple-alert-overlay" className="apple-alert-overlay" style={{ display: "none" }}>
+          <div className="apple-alert-box">
+            <p className="apple-alert-title" id="apple-alert-title"></p>
+            <p className="apple-alert-message" id="apple-alert-message"></p>
+            <div className="apple-alert-actions">
+              <button id="apple-alert-ok">好</button>
+            </div>
+          </div>
+        </div>
+        <script dangerouslySetInnerHTML={{ __html: `
+          (function() {
+            const form = document.getElementById("order-lookup-form");
+            const overlay = document.getElementById("apple-alert-overlay");
+            const titleEl = document.getElementById("apple-alert-title");
+            const msgEl = document.getElementById("apple-alert-message");
+            const okBtn = document.getElementById("apple-alert-ok");
+            function showAlert(title, message) {
+              titleEl.textContent = title;
+              msgEl.textContent = message;
+              overlay.style.display = "flex";
+            }
+            okBtn.addEventListener("click", function() { overlay.style.display = "none"; });
+            overlay.addEventListener("click", function(e) { if (e.target === overlay) overlay.style.display = "none"; });
+            form.addEventListener("submit", function(e) {
+              const nameVal = form.querySelector('[name="name"]').value.trim();
+              const phoneVal = form.querySelector('[name="phone"]').value.trim();
+              if (!nameVal) { e.preventDefault(); showAlert("请输入姓名", "请填写姓名，方便后台识别订单。"); return; }
+              if (!/^[\\u4e00-\\u9fa5a-zA-Z\\s]+$/.test(nameVal)) { e.preventDefault(); showAlert("姓名格式不正确", "姓名只能包含中文或英文字母，不能包含数字或符号。"); return; }
+              if (!phoneVal) { e.preventDefault(); showAlert("请输入手机号", "请填写手机号，用于验证查询订单。"); return; }
+              if (!/^1[3-9]\\d{9}$/.test(phoneVal)) { e.preventDefault(); showAlert("手机号格式不正确", "请输入正确的11位手机号码。"); return; }
+            });
+            var nameInput = form.querySelector('[name="name"]');
+            var phoneInput = form.querySelector('[name="phone"]');
+            nameInput.addEventListener("blur", function() {
+              var v = nameInput.value.trim();
+              if (v && !/^[\\u4e00-\\u9fa5a-zA-Z\\s]+$/.test(v)) { showAlert("姓名格式不正确", "姓名只能包含中文或英文字母。"); }
+            });
+            phoneInput.addEventListener("blur", function() {
+              var v = phoneInput.value.trim();
+              if (v && !/^1[3-9]\\d{9}$/.test(v)) { showAlert("手机号格式不正确", "请输入正确的11位手机号码。"); }
+            });
+          })();
+        `}} />
       </section>
 
       {attempted && orders.length === 0 ? (
@@ -64,7 +123,10 @@ export default async function OrderLookupPage({ searchParams }: PageProps) {
             {orders.map((order) => {
               const themeNames = getThemeNames(order);
               const orderIdShort = order.id.slice(0, 8);
-              const hasAssets = order.order_assets.some((a) => a.kind === "generated");
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const hasAssets = order.order_assets.some((a: any) => a.kind === "generated");
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const generatedCount = order.order_assets.filter((a: any) => a.kind === "generated").length;
               return (
                 <article
                   key={order.id}
@@ -83,7 +145,7 @@ export default async function OrderLookupPage({ searchParams }: PageProps) {
                     )}
                     <p className="muted" style={{ margin: "6px 0 0", fontSize: 12 }}>
                       创建时间：{friendlyTime(order.created_at)}
-                      {hasAssets ? ` · 已生成 ${order.order_assets.filter((a) => a.kind === "generated").length} 张` : ""}
+                      {hasAssets ? " · 已生成 " + generatedCount + " 张" : ""}
                     </p>
                   </div>
                   <div className="actions" style={{ gap: 8, flexShrink: 0 }}>
@@ -111,4 +173,8 @@ export default async function OrderLookupPage({ searchParams }: PageProps) {
       </div>
     </main>
   );
+}
+
+function RequiredMark() {
+  return <sup className="required-star" aria-hidden="true">*</sup>;
 }

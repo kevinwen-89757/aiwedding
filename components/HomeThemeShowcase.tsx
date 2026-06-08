@@ -18,11 +18,12 @@ function ratioFromAspectRatio(aspectRatio?: string | null): ImageRatio | null {
 }
 
 function ratioFromLoadEvent(event: SyntheticEvent<HTMLImageElement>): ImageRatio | null {
-  const { naturalWidth: width, naturalHeight: height } = event.currentTarget;
+  const img = event.currentTarget;
+  if (!img) return null;
+  const { naturalWidth: width, naturalHeight: height } = img;
   if (!width || !height) return null;
-  const ratio = width / height;
-  if (ratio >= 1.35) return "landscape";
-  return ratio > .86 ? "square" : "portrait";
+  if (width / height >= 1.35) return "landscape";
+  return width / height > 0.86 ? "square" : "portrait";
 }
 
 function ThemeImage({ src, alt, className = "", onRatio }: { src?: string; alt: string; className?: string; onRatio?: (ratio: ImageRatio) => void }) {
@@ -42,10 +43,16 @@ function ThemeImage({ src, alt, className = "", onRatio }: { src?: string; alt: 
   if (!src || failed) return <span className={`theme-image-placeholder ${className}`} aria-hidden="true" />;
   return (
     <span className={`theme-image-frame ${className}`}>
-      <img ref={imgRef} src={src} alt={alt} onError={() => setFailed(true)} onLoad={(event) => {
-        const nextRatio = ratioFromLoadEvent(event);
-        if (nextRatio) onRatio?.(nextRatio);
-      }} />
+      <img
+        ref={imgRef}
+        src={src}
+        alt={alt}
+        onError={() => setFailed(true)}
+        onLoad={(event) => {
+          const nextRatio = ratioFromLoadEvent(event);
+          if (nextRatio) onRatio?.(nextRatio);
+        }}
+      />
     </span>
   );
 }
@@ -64,14 +71,25 @@ export function HomeThemeShowcase({ themes }: { themes: WeddingTheme[] }) {
       <div className="theme-grid home-theme-grid">
         {themes.map((theme) => {
           const coverImage = theme.coverImages?.[0] ?? theme.coverImage ?? theme.galleryImages?.[0];
-          const coverRatio = coverImage ? imageRatios[coverImage] ?? ratioFromAspectRatio(theme.prompts[0]?.aspectRatio) ?? "portrait" : "portrait";
+          const coverRatio = coverImage
+            ? imageRatios[coverImage] ?? ratioFromAspectRatio(theme.prompts[0]?.aspectRatio) ?? "portrait"
+            : "portrait";
+          const isLandscape = coverRatio === "landscape";
           const tags = theme.prompts[0].styleTags.filter((tag) => !hiddenTags.has(tag)).slice(0, 4);
           return (
-            <article key={theme.themeId} className={`theme-card theme-card-${coverRatio}`}>
+            <article
+              key={theme.themeId}
+              className={`theme-card ${isLandscape ? "theme-card-landscape" : "theme-card-portrait"}`}
+            >
               <button type="button" className="theme-select-area home-theme-preview-area" onClick={() => setPreviewTheme(theme)}>
                 <span className="theme-cover-grid">
-                  <span className={`theme-cover-shot theme-cover-shot-${coverRatio} ${coverRatio === "landscape" ? "landscapeCoverStage" : "portraitCoverStage"}`}>
-                    <ThemeImage src={coverImage} alt={theme.themeName} className="theme-cover-image" onRatio={(nextRatio) => coverImage ? setImageRatios((current) => current[coverImage] === nextRatio ? current : { ...current, [coverImage]: nextRatio }) : undefined} />
+                  <span className={`theme-cover-shot ${isLandscape ? "theme-cover-shot-landscape" : "theme-cover-shot-portrait"} ${isLandscape ? "landscapeCoverStage" : "portraitCoverStage"}`}>
+                    <ThemeImage
+                      src={coverImage}
+                      alt={theme.themeName}
+                      className="theme-cover-image"
+                      onRatio={(nextRatio) => coverImage ? setImageRatios((current) => current[coverImage] === nextRatio ? current : { ...current, [coverImage]: nextRatio }) : undefined}
+                    />
                   </span>
                 </span>
                 <span className="theme-card-head"><strong>{theme.themeName}</strong></span>

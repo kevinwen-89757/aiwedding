@@ -67,6 +67,46 @@ async function compressImage(file: File, maxBytes = COMPRESS_TARGET_BYTES): Prom
 }
 
 type FileInfo = { name: string; size: number; type: string; isHeic: boolean };
+type S3UploadResult = { key: string; width: number; height: number; size: number };
+
+/**
+ * 生成 S3 预签名 URL，浏览器直传 COS，绕过 Vercel 10s 超时。
+ */
+async function uploadToS3Direct(file: File, orderId: string, role: "bride" | "groom"): Promise<S3UploadResult> {
+  const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
+  const key = `orders/${orderId}/uploads/${role}${ext}`;
+
+  // 1. 获取图片尺寸（浏览器端，避免服务端读取）
+  const objectUrl = URL.createObjectURL(file);
+  const dimensions = await new Promise<{ width: number; height: number }>((resolve) => {
+    const img = new Image();
+    img.onload = () => resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => resolve({ width: 0, height: 0 });
+    img.src = objectUrl;
+  });
+  URL.revokeObjectURL(objectUrl);
+
+  // 2. 请求预签名 URL
+  const signRes = await fetch("/api/s3-sign", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ files: { [key]: file.type } }),
+  });
+  if (!signRes.ok) throw new Error("获取上传凭证失败，请重试");
+  const { urls } = await signRes.json();
+  const signedUrl = urls?.[key];
+  if (!signedUrl) throw new Error("获取上传凭证失败（空 URL）");
+
+  // 3. 浏览器直传 COS
+  const putRes = await fetch(signedUrl, {
+    method: "PUT",
+    headers: { "Content-Type": file.type },
+    body: file,
+  });
+  if (!putRes.ok) throw new Error(`直传 COS 失败（${putRes.status}）`);
+
+  return { key, width: dimensions.width, height: dimensions.height, size: file.size };
+}
 
 export function UploadForm() {
   const router = useRouter();
@@ -82,6 +122,7 @@ export function UploadForm() {
   const [compressing, setCompressing] = useState(false);
   const [compressStatus, setCompressStatus] = useState("");
   const previewsRef = useRef(previews);
+
   useEffect(() => {
     return () => {
       Object.values(previewsRef.current).forEach((url) => {
@@ -89,6 +130,7 @@ export function UploadForm() {
       });
     };
   }, []);
+
   function updatePreview(role: keyof PreviewState, fileList: FileList | null) {
     const file = fileList?.[0];
     setPreviews((current) => {
@@ -103,6 +145,7 @@ export function UploadForm() {
     });
     setError("");
   }
+
   async function onSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError("");
@@ -113,8 +156,9 @@ export function UploadForm() {
     const groomPhoto = form.get("groomPhoto");
     const hasBride = bridePhoto instanceof File && bridePhoto.size > 0;
     const hasGroom = groomPhoto instanceof File && groomPhoto.size > 0;
+
     if (!name) { setError("请填写姓名，方便后台识别订单"); return; }
-    if (!phone) { setError("请填写手机号，用于验证查询订单"); return; }
+    if (!phone || phone.length !== 11) { setError("请填写11位手机号，用于验证查询订单"); return; }
     if (!hasBride) { setError("请上传新娘正脸照"); return; }
     if (!hasGroom) { setError("请上传新郎正脸照"); return; }
     if (!authorized || !understood) { setError("请先勾选两项隐私授权与 AI 生成说明。"); return; }
@@ -138,37 +182,77 @@ export function UploadForm() {
       setCompressing(false);
       setCompressStatus("");
 
-      const uploadForm = new FormData();
-      uploadForm.append("customerName", name);
-      uploadForm.append("customerPhone", phone);
-      uploadForm.append("photoType", photoType);
-      if (brideCompressed) uploadForm.append("bridePhoto", brideCompressed);
-      if (groomCompressed) uploadForm.append("groomPhoto", groomCompressed);
-      const email = form.get("customerEmail");
-      if (email) uploadForm.append("customerEmail", String(email));
-
+      // 先创建订单获取 orderId
       setSubmitting(true);
-      const response = await fetch("/api/orders", { method: "POST", body: uploadForm });
-      const payload = await response.json().catch(() => ({ error: "创建订单失败", detail: `服务器返回了不可解析内容，状态码 ${response.status}` }));
-      if (!response.ok) {
-        setSubmitting(false);
-        const errorText = [payload.error ?? `上传失败，状态码 ${response.status}`, payload.detail].filter(Boolean).join("\n");
-        setError(errorText);
-        return;
+      setError("");
+      const createRes = await fetch("/api/orders/create-key", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          customerName: name,
+          customerPhone: phone,
+          photoType,
+          brideMime: brideCompressed?.type ?? (bridePhoto instanceof File ? bridePhoto.type : "image/jpeg"),
+          groomMime: groomCompressed?.type ?? (groomPhoto instanceof File ? groomPhoto.type : "image/jpeg"),
+        }),
+      });
+      if (!createRes.ok) {
+        const body = await createRes.json().catch(() => ({}));
+        throw new Error(body.error ?? "创建订单失败");
       }
-      router.push(`/orders/${payload.orderId}/themes`);
+      const { orderId } = await createRes.json();
+
+      // 并行直传 COS（浏览器 → COS，绕过 Vercel 超时）
+      setCompressStatus("正在上传到云存储（新娘）…");
+      const bridePromise = brideCompressed
+        ? uploadToS3Direct(brideCompressed, orderId, "bride")
+        : null;
+      setCompressStatus("正在上传到云存储（新郎）…");
+      const groomPromise = groomCompressed
+        ? uploadToS3Direct(groomCompressed, orderId, "groom")
+        : null;
+
+      const [brideResult, groomResult] = await Promise.all([
+        bridePromise,
+        groomPromise,
+      ]);
+
+      setCompressStatus("正在保存订单信息…");
+      // 通知服务端文件已上传，并传入尺寸
+      const confirmRes = await fetch(`/api/orders/${orderId}/confirm-upload`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          brideKey: brideResult?.key ?? null,
+          brideWidth: brideResult?.width ?? null,
+          brideHeight: brideResult?.height ?? null,
+          brideSize: brideResult?.size ?? null,
+          groomKey: groomResult?.key ?? null,
+          groomWidth: groomResult?.width ?? null,
+          groomHeight: groomResult?.height ?? null,
+          groomSize: groomResult?.size ?? null,
+        }),
+      });
+      if (!confirmRes.ok) {
+        const body = await confirmRes.json().catch(() => ({}));
+        throw new Error(body.error ?? "保存上传信息失败");
+      }
+
+      router.push(`/orders/${orderId}/themes`);
     } catch (err) {
       setCompressing(false);
       setCompressStatus("");
+      setSubmitting(false);
       setError(err instanceof Error ? err.message : "上传失败，请查看终端日志");
     }
   }
+
   const hasName = Boolean(customerName.trim());
-  const hasPhone = Boolean(customerPhone.trim());
+  const hasPhone = customerPhone.length === 11;
   const hasBothPhotos = Boolean(previews.bride && previews.groom);
   const hasConsent = authorized && understood;
   const canSubmit = hasName && hasPhone && hasBothPhotos && hasConsent;
-  const hint = !hasName ? "请填写姓名，方便后台识别订单。" : !hasPhone ? "请填写手机号，用于验证查询订单。" : !previews.bride ? "请上传新娘正脸照。" : !previews.groom ? "请上传新郎正脸照。" : !hasConsent ? "请勾选两项授权后继续。" : "";
+  const hint = !hasName ? "请填写姓名，方便后台识别订单。" : !hasPhone ? "请填写11位手机号，用于验证查询订单。" : !previews.bride ? "请上传新娘正脸照。" : !previews.groom ? "请上传新郎正脸照。" : !hasConsent ? "请勾选两项授权后继续。" : "";
 
   function renderFileHint(role: "bride" | "groom") {
     const info = fileInfos[role];
@@ -186,11 +270,11 @@ export function UploadForm() {
     <div className="form-row">
       <label>
         <span className="field-label">姓名 / 订单备注 <RequiredMark /></span>
-        <input name="customerName" placeholder="用于后台识别订单" required value={customerName} onChange={(event)=>setCustomerName(event.currentTarget.value.replace(/[^\u4e00-\u9fa5a-zA-Z\s]/g, ""))} />
+        <input name="customerName" placeholder="用于后台识别订单" required value={customerName} onChange={(event) => setCustomerName(event.currentTarget.value.replace(/[^\u4e00-\u9fa5a-zA-Z\s]/g, ""))} />
       </label>
       <label>
         <span className="field-label">手机号 <RequiredMark /></span>
-        <input name="customerPhone" placeholder="仅用于验证查询订单" required maxLength={11} inputMode="tel" pattern="[0-9]{11}" value={customerPhone} onChange={(event)=>setCustomerPhone(event.currentTarget.value.replace(/\D/g, "").slice(0, 11))} />
+        <input name="customerPhone" placeholder="仅用于验证查询订单" required maxLength={11} inputMode="tel" value={customerPhone} onChange={(event) => setCustomerPhone(event.currentTarget.value.replace(/\D/g, "").slice(0, 11))} />
       </label>
     </div>
     <div className="photo-type-section" style={{ marginBottom: 20, padding: "14px 16px", background: "#f8f6f3", borderRadius: 10, border: "1px solid #e8e3dc" }}>
@@ -213,7 +297,7 @@ export function UploadForm() {
           }}
         >
           <input type="radio" name="photoType" value="id_photo" checked={photoType === "id_photo"} onChange={() => setPhotoType("id_photo")} style={{ accentColor: "#a0845c", width: 18, height: 18, flexShrink: 0 }} />
-          <span style={{ fontSize: 14, lineHeight: 1.5, color: "#333" }}>证件照<span style={{ fontSize: 12, color: "#888", marginLeft: 4 }}>（推荐，效果最佳）</span></span>
+          <span style={{ fontSize: 14, lineHeight: 1.5, color: "#333" }}>证件照<span style={{ fontSize: 12, color: "#888", marginLeft: 4 }}>(推荐，效果最佳)</span></span>
         </label>
         <label
           onClick={() => setPhotoType("casual_photo")}
@@ -246,12 +330,12 @@ export function UploadForm() {
     <div className="upload-file-row">
       <label className="upload-file-control">
         <span className="field-label">新娘正脸照 <RequiredMark /></span>
-        <input name="bridePhoto" type="file" accept="image/png,image/jpeg,image/webp" required onChange={(event)=>updatePreview("bride", event.currentTarget.files)} />
+        <input name="bridePhoto" type="file" accept="image/jpeg,image/png,image/webp" required onChange={(event) => updatePreview("bride", event.currentTarget.files)} />
         {renderFileHint("bride")}
       </label>
       <label className="upload-file-control">
         <span className="field-label">新郎正脸照 <RequiredMark /></span>
-        <input name="groomPhoto" type="file" accept="image/png,image/jpeg,image/webp" required onChange={(event)=>updatePreview("groom", event.currentTarget.files)} />
+        <input name="groomPhoto" type="file" accept="image/jpeg,image/png,image/webp" required onChange={(event) => updatePreview("groom", event.currentTarget.files)} />
         {renderFileHint("groom")}
       </label>
     </div>
@@ -259,8 +343,8 @@ export function UploadForm() {
       <figure className="upload-local-preview">{previews.bride ? <img src={previews.bride} alt="新娘正脸照预览" /> : <span>新娘正脸照预览</span>}<figcaption>新娘正脸照</figcaption></figure>
       <figure className="upload-local-preview">{previews.groom ? <img src={previews.groom} alt="新郎正脸照预览" /> : <span>新郎正脸照预览</span>}<figcaption>新郎正脸照</figcaption></figure>
     </div>
-    <label className="check-row"><input checked={authorized} onChange={(event)=>setAuthorized(event.target.checked)} type="checkbox" />我确认上传的是本人照片，或已获得照片中人物授权</label>
-    <label className="check-row"><input checked={understood} onChange={(event)=>setUnderstood(event.target.checked)} type="checkbox" />我理解生成结果为 AI 写真图，不等同于真实拍摄照片</label>
+    <label className="check-row"><input checked={authorized} onChange={(event) => setAuthorized(event.target.checked)} type="checkbox" />我确认上传的是本人照片，或已获得照片中人物授权</label>
+    <label className="check-row"><input checked={understood} onChange={(event) => setUnderstood(event.target.checked)} type="checkbox" />我理解生成结果为 AI 写真图，不等同于真实拍摄照片</label>
     {hint ? <p className="small auth-hint">{hint}</p> : null}
     {compressStatus ? <p className="small compress-hint" style={{ color: "#3b82f6" }}>{compressStatus}</p> : null}
     {error ? <div className="error-box" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 10, padding: "10px 14px", fontSize: 14, color: "#dc2626", marginTop: 8, whiteSpace: "pre-line" }}>{error}</div> : null}
