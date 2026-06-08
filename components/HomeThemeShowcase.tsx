@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import type { SyntheticEvent } from "react";
 import { ThemePreviewModal } from "@/components/ThemePreviewModal";
 import type { WeddingTheme } from "@/services/prompts";
@@ -57,52 +57,146 @@ function ThemeImage({ src, alt, className = "", onRatio }: { src?: string; alt: 
   );
 }
 
+/** 将主题列表按横/竖版分组为行 */
+function groupThemesIntoRows(themes: WeddingTheme[], imageRatios: Record<string, ImageRatio>) {
+  type ThemeInfo = {
+    theme: WeddingTheme;
+    coverImage: string | undefined;
+    coverRatio: ImageRatio;
+    isLandscape: boolean;
+    tags: string[];
+  };
+
+  const hiddenTags = new Set(["首图", "cover", "prompt", "sweet_spot", "附送", "推荐生成", "A图"]);
+
+  const infos: ThemeInfo[] = themes.map((theme) => {
+    const coverImage = theme.coverImages?.[0] ?? theme.coverImage ?? theme.galleryImages?.[0];
+    const coverRatio = coverImage
+      ? imageRatios[coverImage] ?? ratioFromAspectRatio(theme.prompts[0]?.aspectRatio) ?? "portrait"
+      : "portrait";
+    const isLandscape = coverRatio === "landscape";
+    const tags = theme.prompts[0].styleTags.filter((tag) => !hiddenTags.has(tag)).slice(0, 4);
+    return { theme, coverImage, coverRatio, isLandscape, tags };
+  });
+
+  const rows: { themes: ThemeInfo[] }[] = [];
+  let i = 0;
+
+  while (i < infos.length) {
+    const current = infos[i];
+    if (current.isLandscape) {
+      // 横版：独占一行
+      rows.push({ themes: [current] });
+      i++;
+    } else {
+      // 竖版：尝试收集 2-3 个
+      const group: ThemeInfo[] = [];
+      while (i < infos.length && !infos[i].isLandscape && group.length < 3) {
+        group.push(infos[i]);
+        i++;
+      }
+
+      // 如果只剩 1 个竖版且前一行有 2 个竖版，合并为 3 个
+      if (group.length === 1 && rows.length > 0 && rows[rows.length - 1].themes.length === 2 && !rows[rows.length - 1].themes[0]?.isLandscape) {
+        rows[rows.length - 1].themes.push(group[0]);
+      } else {
+        rows.push({ themes: group });
+      }
+    }
+  }
+
+  return rows;
+}
+
 export function HomeThemeShowcase({ themes }: { themes: WeddingTheme[] }) {
   const [previewTheme, setPreviewTheme] = useState<WeddingTheme | null>(null);
   const [imageRatios, setImageRatios] = useState<Record<string, ImageRatio>>({});
-  const hiddenTags = new Set(["首图", "cover", "prompt", "sweet_spot", "附送", "推荐生成", "A图"]);
+
+  const rows = useMemo(
+    () => groupThemesIntoRows(themes, imageRatios),
+    [themes, imageRatios]
+  );
 
   function closePreview() {
     setPreviewTheme(null);
   }
 
+  function renderThemeCard(info: {
+    theme: WeddingTheme;
+    coverImage: string | undefined;
+    coverRatio: ImageRatio;
+    isLandscape: boolean;
+    tags: string[];
+  }) {
+    const { theme, coverImage, coverRatio, isLandscape, tags } = info;
+    return (
+      <article
+        key={theme.themeId}
+        className={`theme-card ${isLandscape ? "theme-card-landscape" : "theme-card-portrait"}`}
+      >
+        <button type="button" className="theme-select-area home-theme-preview-area" onClick={() => setPreviewTheme(theme)}>
+          <span className="theme-cover-grid">
+            <span className={`theme-cover-shot ${isLandscape ? "theme-cover-shot-landscape" : "theme-cover-shot-portrait"} ${isLandscape ? "landscapeCoverStage" : "portraitCoverStage"}`}
+              style={isLandscape ? {} : { aspectRatio: "3/4" }}
+            >
+              <ThemeImage
+                src={coverImage}
+                alt={theme.themeName}
+                className="theme-cover-image"
+                onRatio={(nextRatio) =>
+                  coverImage
+                    ? setImageRatios((current) =>
+                        current[coverImage] === nextRatio
+                          ? current
+                          : { ...current, [coverImage]: nextRatio }
+                      )
+                    : undefined
+                }
+              />
+            </span>
+          </span>
+          <span className="theme-card-head"><strong>{theme.themeName}</strong></span>
+          <span className="muted">{theme.themeDescription}</span>
+          <span className="theme-tags">{tags.map((tag) => <em key={tag}>{tag}</em>)}</span>
+        </button>
+        <button type="button" className="button secondary theme-gallery-button" onClick={() => setPreviewTheme(theme)}>
+          预览风格
+        </button>
+      </article>
+    );
+  }
+
   return (
     <>
       <div className="theme-grid home-theme-grid">
-        {themes.map((theme) => {
-          const coverImage = theme.coverImages?.[0] ?? theme.coverImage ?? theme.galleryImages?.[0];
-          const coverRatio = coverImage
-            ? imageRatios[coverImage] ?? ratioFromAspectRatio(theme.prompts[0]?.aspectRatio) ?? "portrait"
-            : "portrait";
-          const isLandscape = coverRatio === "landscape";
-          const tags = theme.prompts[0].styleTags.filter((tag) => !hiddenTags.has(tag)).slice(0, 4);
+        {rows.map((row, rowIdx) => {
+          const count = row.themes.length;
+          const isLandscape = row.themes[0]?.isLandscape;
+
           return (
-            <article
-              key={theme.themeId}
-              className={`theme-card ${isLandscape ? "theme-card-landscape" : "theme-card-portrait"}`}
+            <div
+              key={rowIdx}
+              className={`theme-row ${
+                isLandscape
+                  ? "theme-row-landscape"
+                  : count === 3
+                  ? "theme-row-portrait-3"
+                  : "theme-row-portrait-2"
+              }`}
             >
-              <button type="button" className="theme-select-area home-theme-preview-area" onClick={() => setPreviewTheme(theme)}>
-                <span className="theme-cover-grid">
-                  <span className={`theme-cover-shot ${isLandscape ? "theme-cover-shot-landscape" : "theme-cover-shot-portrait"} ${isLandscape ? "landscapeCoverStage" : "portraitCoverStage"}`}>
-                    <ThemeImage
-                      src={coverImage}
-                      alt={theme.themeName}
-                      className="theme-cover-image"
-                      onRatio={(nextRatio) => coverImage ? setImageRatios((current) => current[coverImage] === nextRatio ? current : { ...current, [coverImage]: nextRatio }) : undefined}
-                    />
-                  </span>
-                </span>
-                <span className="theme-card-head"><strong>{theme.themeName}</strong></span>
-                <span className="muted">{theme.themeDescription}</span>
-                <span className="theme-tags">{tags.map((tag) => <em key={tag}>{tag}</em>)}</span>
-              </button>
-              <button type="button" className="button secondary theme-gallery-button" onClick={() => setPreviewTheme(theme)}>预览风格</button>
-            </article>
+              {row.themes.map(renderThemeCard)}
+            </div>
           );
         })}
       </div>
-      <div className="home-theme-cta"><Link className="button" href="/upload">上传正脸照，生成我的婚纱预览</Link></div>
-      <ThemePreviewModal theme={previewTheme} onClose={closePreview} action={<Link className="button" href="/upload">上传正脸照，生成我的婚纱预览</Link>} />
+      <div className="home-theme-cta">
+        <Link className="button" href="/upload">上传正脸照，生成我的婚纱预览</Link>
+      </div>
+      <ThemePreviewModal
+        theme={previewTheme}
+        onClose={closePreview}
+        action={<Link className="button" href="/upload">上传正脸照，生成我的婚纱预览</Link>}
+      />
     </>
   );
 }

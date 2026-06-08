@@ -243,7 +243,15 @@ export function UploadForm() {
       setCompressing(false);
       setCompressStatus("");
       setSubmitting(false);
-      setError(err instanceof Error ? err.message : "上传失败，请查看终端日志");
+      const rawMsg = err instanceof Error ? err.message : String(err);
+      // Detect CORS / network errors from browser direct COS upload
+      if (rawMsg === "Failed to fetch" || rawMsg.includes("NetworkError") || rawMsg.includes("Failed to fetch")) {
+        setError("上传失败：浏览器安全限制阻止了直传。请刷新页面后重试，如仍失败请截图联系客服微信 CyberSunset_K");
+      } else if (rawMsg.includes("Load failed")) {
+        setError("上传失败：网络连接异常。请检查网络后刷新页面重试。");
+      } else {
+        setError(rawMsg || "上传失败，请重试");
+      }
     }
   }
 

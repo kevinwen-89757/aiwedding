@@ -68,13 +68,12 @@ export default async function OrderLookupPage({ searchParams }: PageProps) {
             </div>
           </div>
         </div>
-        <script dangerouslySetInnerHTML={{ __html: `
-          (function() {
-            const form = document.getElementById("order-lookup-form");
-            const overlay = document.getElementById("apple-alert-overlay");
-            const titleEl = document.getElementById("apple-alert-title");
-            const msgEl = document.getElementById("apple-alert-message");
-            const okBtn = document.getElementById("apple-alert-ok");
+        <script>{`(function(){
+            var form = document.getElementById("order-lookup-form");
+            var overlay = document.getElementById("apple-alert-overlay");
+            var titleEl = document.getElementById("apple-alert-title");
+            var msgEl = document.getElementById("apple-alert-message");
+            var okBtn = document.getElementById("apple-alert-ok");
             function showAlert(title, message) {
               titleEl.textContent = title;
               msgEl.textContent = message;
@@ -83,25 +82,24 @@ export default async function OrderLookupPage({ searchParams }: PageProps) {
             okBtn.addEventListener("click", function() { overlay.style.display = "none"; });
             overlay.addEventListener("click", function(e) { if (e.target === overlay) overlay.style.display = "none"; });
             form.addEventListener("submit", function(e) {
-              const nameVal = form.querySelector('[name="name"]').value.trim();
-              const phoneVal = form.querySelector('[name="phone"]').value.trim();
-              if (!nameVal) { e.preventDefault(); showAlert("请输入姓名", "请填写姓名，方便后台识别订单。"); return; }
-              if (!/^[\\u4e00-\\u9fa5a-zA-Z\\s]+$/.test(nameVal)) { e.preventDefault(); showAlert("姓名格式不正确", "姓名只能包含中文或英文字母，不能包含数字或符号。"); return; }
-              if (!phoneVal) { e.preventDefault(); showAlert("请输入手机号", "请填写手机号，用于验证查询订单。"); return; }
-              if (!/^1[3-9]\\d{9}$/.test(phoneVal)) { e.preventDefault(); showAlert("手机号格式不正确", "请输入正确的11位手机号码。"); return; }
+              var nameVal = form.querySelector('[name="name"]').value.trim();
+              var phoneVal = form.querySelector('[name="phone"]').value.trim();
+              if (!nameVal) { e.preventDefault(); showAlert("\\u8BF7\\u8F93\\u5165\\u59D3\\u540D", "\\u8BF7\\u586B\\u5199\\u59D3\\u540D\\uFF0C\\u65B9\\u4FBF\\u540E\\u53F0\\u8BC6\\u522B\\u8BA2\\u5355\\u3002"); return; }
+              if (!/^[\\u4e00-\\u9fa5a-zA-Z\\s]+$/.test(nameVal)) { e.preventDefault(); showAlert("\\u59D3\\u540D\\u683C\\u5F0F\\u4E0D\\u6B63\\u786E", "\\u59D3\\u540D\\u53EA\\u80FD\\u5305\\u542B\\u4E2D\\u6587\\u6216\\u82F1\\u6587\\u5B57\\u6BCD\\uFF0C\\u4E0D\\u80FD\\u5305\\u542B\\u6570\\u5B57\\u6216\\u7B26\\u53F7\\u3002"); return; }
+              if (!phoneVal) { e.preventDefault(); showAlert("\\u8BF7\\u8F93\\u5165\\u624B\\u673A\\u53F7", "\\u8BF7\\u586B\\u5199\\u624B\\u673A\\u53F7\\uFF0C\\u7528\\u4E8E\\u9A8C\\u8BC1\\u67E5\\u8BE2\\u8BA2\\u5355\\u3002"); return; }
+              if (!/^1[3-9]\\d{9}$/.test(phoneVal)) { e.preventDefault(); showAlert("\\u624B\\u673A\\u53F7\\u683C\\u5F0F\\u4E0D\\u6B63\\u786E", "\\u8BF7\\u8F93\\u5165\\u6B63\\u786E\\u768411\\u4F4D\\u624B\\u673A\\u53F7\\u7801\\u3002"); return; }
             });
             var nameInput = form.querySelector('[name="name"]');
             var phoneInput = form.querySelector('[name="phone"]');
             nameInput.addEventListener("blur", function() {
               var v = nameInput.value.trim();
-              if (v && !/^[\\u4e00-\\u9fa5a-zA-Z\\s]+$/.test(v)) { showAlert("姓名格式不正确", "姓名只能包含中文或英文字母。"); }
+              if (v && !/^[\\u4e00-\\u9fa5a-zA-Z\\s]+$/.test(v)) { showAlert("\\u59D3\\u540D\\u683C\\u5F0F\\u4E0D\\u6B63\\u786E", "\\u59D3\\u540D\\u53EA\\u80FD\\u5305\\u542B\\u4E2D\\u6587\\u6216\\u82F1\\u6587\\u5B57\\u6BCD\\u3002"); }
             });
             phoneInput.addEventListener("blur", function() {
               var v = phoneInput.value.trim();
-              if (v && !/^1[3-9]\\d{9}$/.test(v)) { showAlert("手机号格式不正确", "请输入正确的11位手机号码。"); }
+              if (v && !/^1[3-9]\\d{9}$/.test(v)) { showAlert("\\u624B\\u673A\\u53F7\\u683C\\u5F0F\\u4E0D\\u6B63\\u786E", "\\u8BF7\\u8F93\\u5165\\u6B63\\u786E\\u768411\\u4F4D\\u624B\\u673A\\u53F7\\u7801\\u3002"); }
             });
-          })();
-        `}} />
+          })();`}</script>
       </section>
 
       {attempted && orders.length === 0 ? (

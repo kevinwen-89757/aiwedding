@@ -23,3 +23,16 @@ body { font-family: 'PingFang SC', 'Microsoft YaHei', Arial, Helvetica, sans-ser
 .theme-card-portrait-2 { grid-template-columns: 1fr 1fr; }
 .theme-card-portrait-3 { grid-template-columns: 1fr 1fr 1fr; }
 .theme-card-portrait-2 .theme-cover-shot, .theme-card-portrait-3 .theme-cover-shot { aspect-ratio: 3 / 4; }
+
+/* === Theme row layout: landscape full-width, portrait 2-3 per row === */
+.theme-row{display:grid;gap:18px;margin-bottom:0}
+.theme-row-landscape{grid-template-columns:1fr}
+.theme-row-landscape .theme-cover-shot{aspect-ratio:16/9}
+.theme-row-portrait-2{grid-template-columns:1fr 1fr}
+.theme-row-portrait-3{grid-template-columns:1fr 1fr 1fr}
+.theme-row-portrait-2 .theme-cover-shot,
+.theme-row-portrait-3 .theme-cover-shot{aspect-ratio:3/4}
+
+/* === Apple alert for order lookup (already in HTML) === */
+
+/* === Upload form status bar === */
