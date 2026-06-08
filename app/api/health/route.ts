@@ -13,6 +13,12 @@ export async function GET() {
     ok: storageReady,
     mode: appConfig.generationMode,
     provider: appConfig.generationProvider,
-    storageReady
+    storageDriver: appConfig.storageDriver,
+    storageReady,
+    env: {
+      hasSupabaseUrl: Boolean(process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL),
+      hasS3Bucket: Boolean(process.env.S3_BUCKET),
+      storageDriverEnv: process.env.STORAGE_DRIVER || null,
+    }
   });
 }
