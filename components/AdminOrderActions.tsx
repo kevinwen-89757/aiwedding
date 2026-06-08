@@ -25,7 +25,12 @@ export function AdminOrderActions({ orderId, hasGenerated, status, hasThemes, ad
   })();
   async function startGeneration(mode: "start" | "regenerate") {
     setBusy(mode); setError("");
-    const response = await fetch(`/api/admin/orders/${orderId}/start-generation`, { method: "POST" });
+    const isForceRetry = status === "generating" && (isStaleGenerating || hasActiveTask);
+    const response = await fetch(`/api/admin/orders/${orderId}/start-generation`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ force: isForceRetry })
+    });
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
       if (response.status === 409) {
