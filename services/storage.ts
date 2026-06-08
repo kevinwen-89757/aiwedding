@@ -58,6 +58,7 @@ function getS3Client(): S3Client {
   if (!appConfig.s3Endpoint) throw new Error("S3_ENDPOINT 缺失，无法使用 S3/COS 存储。");
   if (!appConfig.s3Bucket) throw new Error("S3_BUCKET 缺失，无法使用 S3/COS 存储。");
   if (!appConfig.s3Region) throw new Error("S3_REGION 缺失，无法使用 S3/COS 存储。");
+  console.log("[storage] 初始化 S3Client...", { region: appConfig.s3Region, bucket: appConfig.s3Bucket, endpoint: appConfig.s3Endpoint });
   s3Client = new S3Client({
     region: appConfig.s3Region,
     endpoint: appConfig.s3Endpoint,
@@ -72,12 +73,27 @@ function getS3Client(): S3Client {
 
 async function uploadS3Object(relativePath: string, buffer: Buffer, mimeType: string) {
   const client = getS3Client();
-  await client.send(new PutObjectCommand({
-    Bucket: appConfig.s3Bucket,
-    Key: relativePath,
-    Body: buffer,
-    ContentType: mimeType,
-  }));
+  // 30秒超时，防止 Vercel Function 被挂起
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
+  try {
+    console.log(`[storage] S3 PutObject 开始: ${relativePath} (${(buffer.length / 1024).toFixed(0)}KB)`);
+    const t0 = Date.now();
+    await client.send(new PutObjectCommand({
+      Bucket: appConfig.s3Bucket,
+      Key: relativePath,
+      Body: buffer,
+      ContentType: mimeType,
+    }), { abortSignal: controller.signal });
+    console.log(`[storage] S3 PutObject 完成: ${relativePath}，耗时 ${Date.now() - t0}ms`);
+  } catch (err) {
+    if (err instanceof Error && err.name === "AbortError") {
+      throw new Error(`S3/COS 上传超时（>30s）：${relativePath}，大小 ${(buffer.length / 1024).toFixed(0)}KB`);
+    }
+    throw err;
+  } finally {
+    clearTimeout(timeoutId);
+  }
 }
 
 async function readS3Object(relativePath: string): Promise<Buffer> {

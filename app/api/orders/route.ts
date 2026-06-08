@@ -6,8 +6,16 @@ import { imageMetadataFromBuffer } from "@/services/watermark";
 import type { UploadedPersonPhoto } from "@/lib/types";
 
 async function savePersonUpload(orderId: string, file: File, role: "bride" | "groom", sortOrder: number) {
+  console.log(`[upload] ${role} 开始上传 storage...`, { size: `${(file.size / 1024).toFixed(0)}KB`, type: file.type });
+  const t0 = Date.now();
   const stored = await saveUpload(file, orderId, role);
+  console.log(`[upload] ${role} storage 上传完成，耗时 ${Date.now() - t0}ms，path=${stored.relativePath}`);
+
+  console.log(`[upload] ${role} 开始读取文件获取元数据...`);
+  const t1 = Date.now();
   const metadata = await imageMetadataFromBuffer(await readStoredFile(stored.relativePath));
+  console.log(`[upload] ${role} 元数据读取完成，耗时 ${Date.now() - t1}ms，${metadata.width}x${metadata.height}`);
+
   const updated = await addLocalAsset(orderId, { kind: "upload", person_role: role, original_path: stored.relativePath, preview_path: null, mime_type: stored.mimeType, width: metadata.width, height: metadata.height, generation_prompt: null, theme_id: null, theme_name: null, prompt_id: null, prompt_name: null, aspect_ratio: null, is_cover_prompt: false, generation_type: null, generation_provider: null, generation_model: null, generation_task_id: null, generation_status: null, generation_error: null, prompt_index: null, sort_order: sortOrder, is_selected: false, is_unlocked: true });
   const asset = updated?.order_assets.find((item) => item.kind === "upload" && item.person_role === role && item.original_path === stored.relativePath);
   const photo: UploadedPersonPhoto = {
@@ -27,6 +35,10 @@ function jsonError(error: string, detail: string, status = 500) {
 function uploadConfigDetail() {
   return [
     `STORAGE_DRIVER=${appConfig.storageDriver}`,
+    `S3_REGION=${appConfig.s3Region || "未配置"}`,
+    `S3_BUCKET=${appConfig.s3Bucket || "未配置"}`,
+    `S3_ENDPOINT=${appConfig.s3Endpoint || "未配置"}`,
+    `S3_KEY configured: ${Boolean(appConfig.s3AccessKeyId)}`,
     `SUPABASE_URL configured: ${Boolean(appConfig.supabaseUrl)}`,
     `SERVICE_ROLE configured: ${Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY)}`,
     `BUCKET configured: ${Boolean(appConfig.supabaseStorageBucket)}`
@@ -34,7 +46,9 @@ function uploadConfigDetail() {
 }
 
 export async function POST(request: Request) {
+  const startTs = Date.now();
   try {
+    console.log("[upload] API 收到请求");
     const formData = await request.formData();
     const customerName = formData.get("customerName");
     if (typeof customerName !== "string" || !customerName.trim()) return jsonError("请填写姓名，方便后台识别订单", "customerName is required", 400);
@@ -45,14 +59,20 @@ export async function POST(request: Request) {
       return jsonError("请上传新娘正脸照", "bridePhoto is required", 400);
     }
     if (!(groomPhoto instanceof File) || groomPhoto.size === 0) return jsonError("请上传新郎正脸照", "groomPhoto is required", 400);
+
+    console.log("[upload] 开始创建订单...");
     const order = await createLocalOrder({ customerName: formData.get("customerName"), customerPhone: formData.get("customerPhone"), customerEmail: formData.get("customerEmail"), photoType: formData.get("photoType") });
+    console.log(`[upload] 订单创建完成: ${order.id}`);
+
     const bride = await savePersonUpload(order.id, bridePhoto, "bride", 0);
     const groom = await savePersonUpload(order.id, groomPhoto, "groom", 1);
     await updateLocalUploadedPhotos(order.id, { bride, groom });
+
+    console.log(`[upload] 全部完成，总耗时 ${Date.now() - startTs}ms`);
     return NextResponse.json({ orderId: order.id });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Upload failed";
-    console.error("POST /api/orders failed:", message);
+    console.error(`[upload] POST /api/orders failed (耗时 ${Date.now() - startTs}ms):`, message);
     return jsonError(message || "创建订单失败，请稍后重试。", uploadConfigDetail(), 500);
   }
 }
