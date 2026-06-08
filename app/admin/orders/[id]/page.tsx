@@ -6,7 +6,6 @@ import { CopyOrderButton } from "@/components/CopyOrderButton";
 import { DeleteOrderButton } from "@/components/DeleteOrderButton";
 import { StatusBadge } from "@/components/StatusBadge";
 import { isAdminToken } from "@/lib/admin";
-import { formatCny } from "@/lib/money";
 import { getProgressIndex } from "@/lib/status";
 import type { OrderAsset } from "@/lib/types";
 import {
@@ -48,7 +47,7 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
   const generatedAssetsCount = generated.length;
   const activeGenerationJobs = generationJobs.filter((job) => job.status !== "completed" && job.status !== "failed");
   const selectedThemes = getSelectedThemes(order.selected_theme_ids ?? []);
-  const themeText = order.selected_theme_ids?.length ? selectedThemes.map((theme) => theme.themeName).join("、") : "未选择";
+  const themeText = order.selected_theme_ids?.length ? selectedThemes.map((theme) => theme.themeName).join("。") : "未选择";
   const generationPlan = order.selected_theme_ids?.length ? getEffectiveOrderGenerationPlan(order) : [];
   const progress = getProgressIndex(order.status);
   const steps = ["上传", "选主题", "支付", "生成", "选片", "付款", "下载"];
@@ -60,7 +59,7 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
           <div>
             <p className="eyebrow">Admin detail</p>
             <h1>订单详情</h1>
-            <p className="muted">完整订单号：{order.id}</p>
+            <p className="muted" style={{ fontSize: 14, marginTop: 4 }}>完整订单号：{order.id}</p>
           </div>
           <Link className="button secondary" href="/admin/orders">返回列表</Link>
         </div>
@@ -87,13 +86,7 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
           <p>邮箱：{order.customer_email || "未填写"}</p>
           <p>已选主题：{themeText}</p>
           <p>选片数量：{order.selected_count} 张</p>
-          <p>选片金额：{formatCny(order.selection_amount_cents)}</p>
-          {order.admin_note ? (
-            <details>
-              <summary>生成/管理记录</summary>
-              <pre>{order.admin_note}</pre>
-            </details>
-          ) : null}
+          <p>选片页浏览：{(order.metadata?.selection_page_views as number) || 0} 次</p>
           <AdminConfirmButtons orderId={order.id} status={order.status} />
         </div>
 
@@ -112,16 +105,6 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
           <p>计划：{generationPlan.length} 张</p>
           <p>已完成：{generatedAssetsCount} 张</p>
           <p>进行中：{activeGenerationJobs.length} 张</p>
-          {generationJobs.length > 0 && (
-            <details>
-              <summary>APIMart 任务详情</summary>
-              {generationJobs.map((job) => (
-                <p key={job.task_id || job.image_number} className="muted">
-                  图 {job.image_number}：{job.status} · 查询 {job.poll_count} 次{job.error ? ` · ${job.error}` : ""}
-                </p>
-              ))}
-            </details>
-          )}
         </div>
 
         <AdminOrderActions
@@ -129,11 +112,40 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
           hasGenerated={generatedAssetsCount > 0}
           status={order.status}
           hasThemes={Boolean(order.selected_theme_ids?.length)}
-          adminNote={order.admin_note}
           updatedAt={order.updated_at}
           hasActiveGenerationTasks={activeGenerationJobs.length > 0}
         />
       </section>
+
+      {/* 独立的 API 生成记录模块 */}
+      {(order.admin_note || generationJobs.length > 0) && (
+        <section className="section">
+          <h2>API 生成记录</h2>
+          <div className="grid">
+            {order.admin_note ? (
+              <div className="card">
+                <h3>生成管理日志</h3>
+                <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", fontSize: 13, lineHeight: 1.6, maxHeight: 400, overflow: "auto", background: "#f8f9fa", padding: 12, borderRadius: 8 }}>{order.admin_note}</pre>
+              </div>
+            ) : null}
+            {generationJobs.length > 0 ? (
+              <div className="card">
+                <h3>APIMart 任务详情</h3>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {generationJobs.map((job) => (
+                    <div key={job.task_id || job.image_number} style={{ padding: "8px 12px", background: "#f8f9fa", borderRadius: 8, fontSize: 13 }}>
+                      <strong>图 {job.image_number}</strong> · 状态：{job.status} · 查询 {job.poll_count} 次
+                      {job.error ? <div style={{ color: "#dc2626", marginTop: 4 }}>{job.error}</div> : null}
+                      {job.result_image_url ? <div style={{ color: "#16a34a", marginTop: 4 }}>结果图：{job.result_image_url.slice(0, 60)}...</div> : null}
+                      <div style={{ color: "#888", marginTop: 4, fontSize: 12 }}>task_id: {job.task_id}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </section>
+      )}
 
       <section className="section">
         <h2>生成结果</h2>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { HomeCarousel } from "@/components/HomeCarousel";
 import { HomeThemeShowcase } from "@/components/HomeThemeShowcase";
+import { SiteVisitTracker } from "@/components/SiteVisitTracker";
 import { weddingThemes } from "@/services/prompts";
 
 /* eslint-disable react/no-unescaped-entities */
@@ -14,6 +15,7 @@ export default function HomePage() {
   const images = homeCarouselImages();
   return (
     <main>
+      <SiteVisitTracker page="home" />
       <section className="shell hero">
         <div>
           <p className="eyebrow">AI Wedding Studio</p>

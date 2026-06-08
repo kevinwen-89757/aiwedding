@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { AdminOrdersTable } from "@/components/AdminOrdersTable";
+import { SiteAnalyticsCard } from "@/components/SiteAnalyticsCard";
 import { isAdminToken } from "@/lib/admin";
 import { listLocalOrders } from "@/services/localStore";
 import { getSelectedThemes } from "@/services/prompts";
@@ -93,6 +94,7 @@ export default async function AdminOrdersPage({ searchParams }: PageProps) {
         <h1>订单列表</h1>
         <p className="lead">查看支付、生成、选片和交付状态。</p>
       </section>
+      <SiteAnalyticsCard />
       {queueSummary}
       <AdminOrdersTable orders={orderRows} />
     </main>

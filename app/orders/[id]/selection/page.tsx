@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { SelectionGrid } from "@/components/SelectionGrid";
+import { SelectionViewTracker } from "@/components/SelectionViewTracker";
 import { getLocalOrder } from "@/services/localStore";
 import type { OrderAsset } from "@/lib/types";
 
@@ -13,6 +14,7 @@ export default async function SelectionPage({ params }: PageProps) {
   const idPhotoAssets = order.order_assets.filter((asset: OrderAsset) => asset.kind === "generated" && asset.generation_type === "id_photo");
   return (
     <main className="shell selection-page">
+      <SelectionViewTracker orderId={id} />
       <section className="page-head">
         <p className="eyebrow">Selection</p>
         <h1>先看高清预览，再解锁喜欢的原图。</h1>

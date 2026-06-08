@@ -173,7 +173,10 @@ function apiProgressNote(lines: string[]) {
 
 function appendApiProgressNoteText(current: string | null, lines: string[]) {
   const base = current?.startsWith("API 生成记录") ? current : apiProgressNote([]);
-  const next = [base, ...lines].filter(Boolean).join("\n");
+  const now = new Date();
+  const timeStr = `${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+  const timestampedLines = lines.map((line) => `[${timeStr}] ${line}`);
+  const next = [base, ...timestampedLines].filter(Boolean).join("\n");
   return next.length > 10000 ? next.slice(next.length - 10000) : next;
 }
 
