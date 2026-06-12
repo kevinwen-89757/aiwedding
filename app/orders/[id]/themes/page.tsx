@@ -1,0 +1,17 @@
+import { ThemeSelector } from "@/components/ThemeSelector";
+import { getLocalOrder } from "@/services/localStore";
+import { weddingThemes } from "@/services/prompts";
+
+type PageProps = { params: Promise<{ id: string }> };
+
+export default async function OrderThemesPage({ params }: PageProps) {
+  const { id } = await params;
+  const order = await getLocalOrder(id);
+  if (!order) return <main className="shell section">订单不存在</main>;
+  return (
+    <main className="shell themes-page">
+      <section className="page-head"><p className="eyebrow">Styles</p><h1>选择婚纱写真主题</h1><p className="lead">请选择 2个喜欢的风格。系统会根据你的选择生成 AI 婚纱写真预览图。</p></section>
+      <ThemeSelector orderId={id} themes={weddingThemes} selectedThemeIds={order.selected_theme_ids ?? []} />
+    </main>
+  );
+}

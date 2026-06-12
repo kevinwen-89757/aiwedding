@@ -1,0 +1,19 @@
+.next
+node_modules
+.env
+.env.local
+storage/
+storage/orders.json
+storage/uploads/*
+storage/generated/*
+storage/previews/*
+!storage/uploads/.gitkeep
+!storage/generated/.gitkeep
+!storage/previews/.gitkeep
+
+# build / deploy cache
+.netlify/
+tsconfig.tsbuildinfo
+.next/
+.vercel
+.env*
