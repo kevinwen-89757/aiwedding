@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { findOrdersByCustomerName } from "@/services/localStore";
+import { findOrdersByCustomerName, listLocalOrders } from "@/services/localStore";
 import { OrderLookupForm } from "@/components/OrderLookupForm";
 import { StatusBadge } from "@/components/StatusBadge";
 import { getSelectedThemes } from "@/services/prompts";
@@ -8,9 +8,25 @@ type PageProps = { searchParams: Promise<{ name?: string; phone?: string }> };
 
 export default async function OrderLookupPage({ searchParams }: PageProps) {
   const { name = "", phone = "" } = await searchParams;
-  const nameOrders = name.trim() ? await findOrdersByCustomerName(name.trim()) : [];
-  const orders = phone.trim() ? nameOrders.filter((o) => o.customer_phone === phone.trim()) : [];
-  const attempted = Boolean(name && phone);
+  const trimmedName = name.trim();
+  const trimmedPhone = phone.trim();
+  const attempted = Boolean(trimmedName) || Boolean(trimmedPhone);
+
+  let orders: Awaited<ReturnType<typeof listLocalOrders>> = [];
+  if (attempted) {
+    const nameSet = new Set<string>();
+    if (trimmedName) {
+      for (const o of await findOrdersByCustomerName(trimmedName)) nameSet.add(o.id);
+    }
+    if (trimmedPhone) {
+      const all = await listLocalOrders();
+      for (const o of all) {
+        if (o.customer_phone === trimmedPhone) nameSet.add(o.id);
+      }
+    }
+    const allOrders = await listLocalOrders();
+    orders = allOrders.filter((o) => nameSet.has(o.id));
+  }
 
   function friendlyTime(iso: string) {
     const d = new Date(iso);
@@ -25,7 +41,7 @@ export default async function OrderLookupPage({ searchParams }: PageProps) {
       <section className="page-head">
         <p className="eyebrow">My Orders</p>
         <h1>查询我的订单</h1>
-        <p className="lead">输入下单时填写的姓名和手机号即可找到你的订单。</p>
+        <p className="lead">输入下单时填写的姓名或手机号即可找到你的订单。</p>
       </section>
 
       <section className="card order-lookup-card">
@@ -35,7 +51,7 @@ export default async function OrderLookupPage({ searchParams }: PageProps) {
       {attempted && orders.length === 0 ? (
         <div className="card" style={{ marginTop: 24, padding: "28px 24px", textAlign: "center" }}>
           <p style={{ fontSize: 18, fontWeight: 600, margin: "0 0 8px" }}>未找到匹配的订单</p>
-          <p className="muted" style={{ margin: 0 }}>请确认姓名和手机号与下单时填写的一致。</p>
+          <p className="muted" style={{ margin: 0 }}>请确认姓名或手机号与下单时填写的一致。</p>
           <p className="muted" style={{ margin: "12px 0 0" }}>
             如需帮助，可联系微信客服 <strong>CyberSunset_K</strong>
           </p>

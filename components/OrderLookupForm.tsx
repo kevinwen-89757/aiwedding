@@ -3,11 +3,11 @@
 import { useRef, useState } from "react";
 
 function nameOnly(value: string) {
-  return value.replace(/[^\u4e00-\u9fa5a-zA-Z]/g, "");
+  return value.replace(/[^\u4e00-\u9fa5a-zA-Z\s]/g, "").replace(/\s{2,}/g, " ").trim();
 }
 
 function isValidName(value: string) {
-  return /^[\u4e00-\u9fa5a-zA-Z]+$/.test(value);
+  return /^[\u4e00-\u9fa5a-zA-Z][\u4e00-\u9fa5a-zA-Z\s]*[\u4e00-\u9fa5a-zA-Z]$|^[\u4e00-\u9fa5a-zA-Z]$/.test(value);
 }
 
 function digitsOnly(value: string) {
@@ -28,19 +28,20 @@ export function OrderLookupForm({ defaultName, defaultPhone }: { defaultName: st
       noValidate
       onSubmit={(event) => {
         const trimmedName = name.trim();
-        if (!trimmedName) {
+        const trimmedPhone = phone.trim();
+        if (!trimmedName && trimmedPhone.length !== 11) {
           event.preventDefault();
-          setError("请输入中文或英文姓名");
+          setError("请输入姓名或完整的 11 位手机号");
           return;
         }
-        if (!isValidName(trimmedName)) {
+        if (trimmedName && !isValidName(trimmedName)) {
           event.preventDefault();
           setError("姓名仅支持中文或英文");
           return;
         }
-        if (phone.length !== 11) {
+        if (trimmedPhone && trimmedPhone.length !== 11) {
           event.preventDefault();
-          setError("请输入 11 位手机号");
+          setError("手机号需为 11 位");
           return;
         }
         setError("");
@@ -52,10 +53,9 @@ export function OrderLookupForm({ defaultName, defaultPhone }: { defaultName: st
           <input
             name="name"
             value={name}
-            placeholder="如：张三"
-            required
+            placeholder="如：张三 或 John Smith"
             autoComplete="name"
-            pattern="[\u4e00-\u9fa5a-zA-Z]+"
+            pattern="[\u4e00-\u9fa5a-zA-Z\s]+"
             title="请输入中文或英文姓名"
             aria-invalid={error.includes("姓名")}
             onBeforeInput={(event) => {
@@ -88,8 +88,7 @@ export function OrderLookupForm({ defaultName, defaultPhone }: { defaultName: st
           <input
             name="phone"
             value={phone}
-            placeholder="下单时填写的手机号"
-            required
+            placeholder="下单时填写的手机号（选填）"
             maxLength={11}
             type="tel"
             inputMode="tel"
