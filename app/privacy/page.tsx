@@ -1,3 +1,5 @@
+export const dynamic = "force-static";
+
 export default function PrivacyPage() {
   return (
     <main className="narrow section">
