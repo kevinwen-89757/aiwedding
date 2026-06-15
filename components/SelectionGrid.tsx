@@ -276,7 +276,7 @@ export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectio
       <div className="selection-lightbox" role="dialog" aria-modal="true" aria-label={`第 ${previewAsset.sort_order} 张带水印预览图`} onClick={() => setPreviewAsset(null)}>
         <button className="selection-lightbox-close" type="button" onClick={() => setPreviewAsset(null)} aria-label="关闭预览"><X size={22} /></button>
         <div className="selection-lightbox-content" onClick={(event) => event.stopPropagation()}>
-          <p>#{previewAsset.sort_order} 4K 预览 · <strong style={{color:"#dc2626"}}>页面不支持下载</strong>，截图清晰度不足 · 解锁后获得无水印原文件</p>
+          <p>#{previewAsset.sort_order} 4K 原图 · <strong style={{color:"#dc2626"}}>带水印</strong> · 截图/转发均有水印 · 解锁后获得无水印原文件</p>
           <img src={previewUrl(previewAsset)} alt={`4K 高清预览 ${previewAsset.sort_order}`} onContextMenu={preventDownload} onDragStart={preventDownload} style={{userSelect:"none",pointerEvents:"none"}} />
         </div>
       </div>

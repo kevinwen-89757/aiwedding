@@ -37,6 +37,25 @@ export async function createWatermarkedPreviewBuffer(input: Buffer, options?: Wa
   return sharp(resizedBuffer).composite([{ input: Buffer.from(svg), gravity: "center" }]).jpeg({ quality: 82 }).toBuffer();
 }
 
+/** 4K 带水印预览：保持原始分辨率，不加缩小，仅添加半透明水印。用于 show4k=1 预览。 */
+export async function createWatermarked4KBuffer(input: Buffer, options?: WatermarkOptions) {
+  const { text: watermarkText = "aiwedding.space", opacity = 0.4 } = options ?? {};
+  const metadata = await sharp(input).metadata();
+  const width = metadata.width ?? 3840;
+  const height = metadata.height ?? 5760;
+  // 水印按图片尺寸等比放大
+  const fontSize = Math.round(Math.min(width, height) / 20);
+  const horizontalStep = Math.round(width * 0.2);
+  const verticalStep = Math.round(height * 0.12);
+  const startX = -width;
+  const startY = -height;
+  const columns = Math.ceil((width * 3) / horizontalStep);
+  const rows = Math.ceil((height * 3) / verticalStep);
+  const marks = Array.from({ length: rows }).map((_, row) => Array.from({ length: columns }).map((__, col) => `<text x="${startX + col * horizontalStep}" y="${startY + row * verticalStep}">${watermarkText}</text>`).join("")).join("");
+  const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><style>text{font-family:Arial,sans-serif;font-size:${fontSize}px;font-weight:700;fill:rgba(255,255,255,${opacity});letter-spacing:2px}</style><g transform="rotate(-28 ${width / 2} ${height / 2})">${marks}</g></svg>`;
+  return sharp(input).composite([{ input: Buffer.from(svg), gravity: "center" }]).jpeg({ quality: 85 }).toBuffer();
+}
+
 export async function createWatermarkedPreview(inputAbsolutePath: string, outputRelativePath: string) {
   const outputAbsolutePath = absoluteStoragePath(outputRelativePath);
   await mkdir(path.dirname(outputAbsolutePath), { recursive: true });

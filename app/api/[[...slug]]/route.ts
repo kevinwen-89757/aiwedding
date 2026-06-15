@@ -168,11 +168,13 @@ async function handleDownloadGET(request: Request, assetId: string) {
   if (!pathToRead) return jsonError("File not found", 404);
   if (!preview && !show4k && asset.kind === "generated" && !asset.is_unlocked) return jsonError("Asset is locked", 403);
   if (show4k && asset.kind === "generated") {
-    // 4K 预览：返回 original_path，但禁用缓存和下载
+    // 4K 水印预览：保持原图分辨率，加半透明水印防截图
+    const { createWatermarked4KBuffer } = await import("@/services/watermark");
     const file = await readStoredFile(asset.original_path);
-    return new NextResponse(new Uint8Array(file), {
+    const watermarked = await createWatermarked4KBuffer(file);
+    return new NextResponse(new Uint8Array(watermarked), {
       headers: {
-        "content-type": asset.mime_type,
+        "content-type": "image/jpeg",
         "cache-control": "no-cache, no-store, must-revalidate",
         "content-disposition": "inline",
         "x-content-type-options": "nosniff",
