@@ -155,7 +155,9 @@ async function handleDownloadGET(request: Request, assetId: string) {
   const { adminUnauthorized } = await import("@/lib/admin");
   const { findLocalAsset } = await import("@/services/localStore");
   const { readStoredFile } = await import("@/services/storage");
-  const preview = new URL(request.url).searchParams.get("preview") === "1";
+  const url = new URL(request.url);
+  const preview = url.searchParams.get("preview") === "1";
+  const show4k = url.searchParams.get("show4k") === "1";
   const asset = await findLocalAsset(assetId);
   if (!asset) return jsonError("Asset not found", 404);
   if (asset.kind === "upload") {
@@ -164,7 +166,21 @@ async function handleDownloadGET(request: Request, assetId: string) {
   }
   const pathToRead = preview ? asset.preview_path : asset.original_path;
   if (!pathToRead) return jsonError("File not found", 404);
-  if (!preview && asset.kind === "generated" && !asset.is_unlocked) return jsonError("Asset is locked", 403);
+  if (!preview && !show4k && asset.kind === "generated" && !asset.is_unlocked) return jsonError("Asset is locked", 403);
+  if (show4k && asset.kind === "generated") {
+    // 4K 预览：返回 original_path，但禁用缓存和下载
+    const file = await readStoredFile(asset.original_path);
+    return new NextResponse(new Uint8Array(file), {
+      headers: {
+        "content-type": asset.mime_type,
+        "cache-control": "no-cache, no-store, must-revalidate",
+        "content-disposition": "inline",
+        "x-content-type-options": "nosniff",
+        "pragma": "no-cache",
+        "expires": "0"
+      }
+    });
+  }
   const file = await readStoredFile(pathToRead);
   return new NextResponse(new Uint8Array(file), { headers: { "content-type": preview ? "image/jpeg" : asset.mime_type, "cache-control": "private, max-age=60" } });
 }

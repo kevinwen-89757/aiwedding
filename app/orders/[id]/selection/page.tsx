@@ -15,15 +15,15 @@ export default async function SelectionPage({ params }: PageProps) {
     <main className="shell selection-page">
       <section className="page-head">
         <p className="eyebrow">Selection</p>
-        <h1>先看高清预览，再解锁喜欢的原图。</h1>
-        <p className="lead">预览高清，选中喜欢的照片后，可解锁无水印原图保存。</p>
+        <h1>查看 4K 高清质量，再决定解锁保存。</h1>
+        <p className="lead">以下展示 4K 高清原图真实效果，解锁后即可下载保存。</p>
         <div className="selection-value-tags">
-          <span>高清水印预览</span>
+          <span>4K 高清预览</span>
           <span>解锁无水印原图</span>
           <span>无水印保存</span>
         </div>
         <div className="info-box" style={{marginTop:16,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#dc2626"}}>
-          <strong>⚠️ 重要提示：</strong>当前预览图带有<strong>水印</strong>且分辨率仅限屏幕预览，<strong>无法满足大屏显示或打印精度</strong>。付费解锁后可获得<strong>4K 高清无水印原图</strong>，可商用、可打印。
+          <strong>📸 预览为 4K 高清原图：</strong>可查看真实画质。当前页面<strong>不支持下载保存</strong>，<strong>截图清晰度有限</strong>。付费解锁后可获得<strong>无水印原文件</strong>，可用于打印、商用等。
         </div>
       </section>
       {generatedAssets.length === 0 ? (

@@ -8,7 +8,12 @@ import { buildPhotoLayoutRows, fixedAspectRatio, ratioKind } from "@/lib/photoLa
 import type { OrderAsset } from "@/lib/types";
 
 function previewUrl(asset: OrderAsset) {
-  return `/api/download/${asset.id}?preview=1`;
+  // 显示 4K 高清原图预览（无水印），但防下载 — 截图清晰度不够打印精度
+  return `/api/download/${asset.id}?show4k=1`;
+}
+
+function preventDownload(event: React.MouseEvent | React.DragEvent) {
+  event.preventDefault();
 }
 
 type ThemeGroup = { themeId: string; themeName: string; assets: OrderAsset[] };
@@ -36,7 +41,9 @@ function AssetTile({ asset, selected, isUnlocked, onToggle, onPreview }: { asset
         aria-pressed={selected}
         aria-label={`选择第 ${asset.sort_order} 张`}
       >
-        <img src={previewUrl(asset)} alt={`带水印预览图 ${asset.sort_order}`} />
+        <img src={previewUrl(asset)} alt={`带水印预览图 ${asset.sort_order}`} onContextMenu={preventDownload} onDragStart={preventDownload} style={{userSelect:"none",pointerEvents:"none"}} />
+        {/* 透明覆盖层 — 防止拖拽图片到桌面/另存为 */}
+        <div style={{position:"absolute",inset:0,zIndex:1,cursor:"pointer"}} onClick={isUnlocked ? undefined : onToggle} />
         {isUnlocked ? (
           <span className="selection-unlocked-badge">已解锁</span>
         ) : (
@@ -223,7 +230,7 @@ export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectio
                     aria-pressed={selected.has(asset.id)}
                     aria-label={`选择 ${asset.theme_name ?? "风格"} 首图`}
                   >
-                    <img src={previewUrl(asset)} alt={`${asset.theme_name ?? "风格"} 首图`} />
+                    <img src={previewUrl(asset)} alt={`${asset.theme_name ?? "风格"} 首图`} onContextMenu={preventDownload} onDragStart={preventDownload} style={{userSelect:"none",pointerEvents:"none"}} />
                     <span className="selection-hover-hint">{selected.has(asset.id) ? "已选中" : "点击选择这张"}</span>
                     <span className="selection-photo-number">#{asset.sort_order}</span>
                     <span className="recommendation-theme-label">{asset.theme_name}</span>
@@ -269,8 +276,8 @@ export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectio
       <div className="selection-lightbox" role="dialog" aria-modal="true" aria-label={`第 ${previewAsset.sort_order} 张带水印预览图`} onClick={() => setPreviewAsset(null)}>
         <button className="selection-lightbox-close" type="button" onClick={() => setPreviewAsset(null)} aria-label="关闭预览"><X size={22} /></button>
         <div className="selection-lightbox-content" onClick={(event) => event.stopPropagation()}>
-          <p>#{previewAsset.sort_order} 预览 · <strong style={{color:"#dc2626"}}>带水印 · 低分辨率</strong>，无法打印 · 解锁后获得 4K 无水印原图</p>
-          <img src={previewUrl(previewAsset)} alt={`带水印大图预览 ${previewAsset.sort_order}`} />
+          <p>#{previewAsset.sort_order} 4K 预览 · <strong style={{color:"#dc2626"}}>页面不支持下载</strong>，截图清晰度不足 · 解锁后获得无水印原文件</p>
+          <img src={previewUrl(previewAsset)} alt={`4K 高清预览 ${previewAsset.sort_order}`} onContextMenu={preventDownload} onDragStart={preventDownload} style={{userSelect:"none",pointerEvents:"none"}} />
         </div>
       </div>
     ), document.body) : null}
