@@ -185,7 +185,7 @@ export function UploadForm() {
     <div className="form-row">
       <label>
         <span className="field-label">姓名 / 订单备注 <RequiredMark /></span>
-        <input name="customerName" placeholder="用于后台识别订单" required value={customerName} pattern="[\u4e00-\u9fa5a-zA-Z]+" title="请输入中文或英文姓名" onChange={(event)=>setCustomerName(event.currentTarget.value.replace(/[^\u4e00-\u9fa5a-zA-Z]/g, ""))} />
+        <input type="text" name="customerName" placeholder="用于后台识别订单" required value={customerName} autoComplete="name" inputMode="text" pattern="[\u4e00-\u9fa5a-zA-Z\s]+" title="请输入中文或英文姓名" onChange={(event)=>setCustomerName(event.currentTarget.value.replace(/[^\u4e00-\u9fa5a-zA-Z\s]/g, ""))} />
       </label>
       <label>
         <span className="field-label">手机号 <RequiredMark /></span>

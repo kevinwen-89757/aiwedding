@@ -168,8 +168,9 @@ export function getGenerationRuntimeConfig(order: Pick<LocalOrder, "selected_the
   };
 }
 
-function apiProgressNote(lines: string[]) {
-  return [`API 生成记录`, `模式：${appConfig.generationMode}`, `Provider：${appConfig.generationProvider ?? "未配置"}`, `模型：${appConfig.apimartModel}`, `resolution=${appConfig.apimartResolution}`, `timeoutMs=${Number.isFinite(appConfig.apimartTimeoutMs) ? appConfig.apimartTimeoutMs : 300000}`, `GENERATION_TEST_LIMIT=${Number.isFinite(appConfig.generationTestLimit) ? appConfig.generationTestLimit : "未设置"}`, ...lines].join("\n");
+function apiProgressNote(lines: string[], resolution?: string) {
+  const res = resolution ?? appConfig.apimartResolution;
+  return [`API 生成记录`, `模式：${appConfig.generationMode}`, `Provider：${appConfig.generationProvider ?? "未配置"}`, `模型：${appConfig.apimartModel}`, `resolution=${res}`, `timeoutMs=${Number.isFinite(appConfig.apimartTimeoutMs) ? appConfig.apimartTimeoutMs : 300000}`, `GENERATION_TEST_LIMIT=${Number.isFinite(appConfig.generationTestLimit) ? appConfig.generationTestLimit : "未设置"}`, ...lines].join("\n");
 }
 
 function appendApiProgressNoteText(current: string | null, lines: string[]) {
@@ -212,6 +213,7 @@ function buildGenerationJob(item: GenerationTaskItem, index: number, input: {
   status: GenerationJob["status"];
   error: string | null;
   resultImageUrl?: string | null;
+  resolution?: string;
 }): GenerationJob {
   const now = new Date().toISOString();
   return {
@@ -231,7 +233,7 @@ function buildGenerationJob(item: GenerationTaskItem, index: number, input: {
     generation_type: item.generationType,
     prompt_index: index,
     raw_prompt: item.rawPrompt,
-    resolution: appConfig.apimartResolution,
+    resolution: input.resolution ?? appConfig.apimartResolution,
     created_at: now,
     updated_at: now
   };
@@ -286,11 +288,14 @@ export async function startApiGeneration(order: LocalOrder) {
   const { bride, groom } = references;
   if (!bride || !groom) throw new Error("缺少新娘或新郎正脸照，无法生成。");
   if (!order.selected_theme_ids?.length) throw new Error("当前订单未选择风格，请先选择风格后再生成。");
+  const plan = getEffectiveOrderGenerationPlan(order);
+  if (!plan.length) throw new Error("没有可执行的生成计划。");
+  const runtimeConfig = getGenerationRuntimeConfig(order);
 
   await updateLocalOrder(order.id, (current) => ({
     ...current,
     status: "generating",
-    admin_note: apiProgressNote(["准备调用 APIMart。"]),
+    admin_note: apiProgressNote(["准备调用 APIMart。"], runtimeConfig.apimartResolution),
     generation_jobs: []
   }));
   await clearLocalGeneratedAssets(order.id);
@@ -303,9 +308,6 @@ export async function startApiGeneration(order: LocalOrder) {
     brideMime: bride.mime_type,
     groomMime: groom.mime_type
   });
-  const plan = getEffectiveOrderGenerationPlan(order);
-  if (!plan.length) throw new Error("没有可执行的生成计划。");
-  const runtimeConfig = getGenerationRuntimeConfig(order);
   console.log("[start-generation] plan diagnostics", {
     orderId: order.id,
     plannedTaskCount: runtimeConfig.plannedTaskCount,
@@ -320,7 +322,7 @@ export async function startApiGeneration(order: LocalOrder) {
     mimeType: bride.mime_type,
     filename: path.basename(bride.original_path)
   });
-  await updateLocalOrderStatus(order.id, "generating", { admin_note: apiProgressNote([`新娘正脸照已传到 APIMart：${brideImageUrl}`, "准备上传新郎正脸照。"]) });
+  await updateLocalOrderStatus(order.id, "generating", { admin_note: apiProgressNote([`新娘正脸照已传到 APIMart：${brideImageUrl}`, "准备上传新郎正脸照。"], runtimeConfig.apimartResolution) });
 
   console.log("[start-generation] 开始上传新郎照片...", { groomSize: `${(groomReference.length / 1024).toFixed(0)}KB` });
   const groomImageUrl = await apimartUploadImage({
@@ -335,9 +337,9 @@ export async function startApiGeneration(order: LocalOrder) {
       `计划任务数：${runtimeConfig.plannedTaskCount}`,
       `plan.length=${plan.length}`,
       `effectiveLimit=${runtimeConfig.effectiveLimit ?? "未设置"}`,
-      `本次 resolution=${appConfig.apimartResolution}`,
-      `本次 timeoutMs=${Number.isFinite(appConfig.apimartTimeoutMs) ? appConfig.apimartTimeoutMs : 300000}`
-    ])
+      `本次 resolution=${runtimeConfig.apimartResolution}`,
+      `本次 timeoutMs=${runtimeConfig.apimartTimeoutMs}`
+    ], runtimeConfig.apimartResolution)
   });
 
   const jobs: GenerationJob[] = [];
@@ -350,7 +352,8 @@ export async function startApiGeneration(order: LocalOrder) {
       const job = buildGenerationJob(item, index, {
         taskId: `empty-prompt-${order.id}-${item.imageNumber}`,
         status: "failed",
-        error: message
+        error: message,
+        resolution: runtimeConfig.apimartResolution
       });
       jobs.push(job);
       await updateLocalOrder(order.id, (current) => ({
@@ -387,7 +390,8 @@ export async function startApiGeneration(order: LocalOrder) {
       const job = buildGenerationJob(item, index, {
         taskId: task.taskId,
         status: "created",
-        error: null
+        error: null,
+        resolution: runtimeConfig.apimartResolution
       });
       jobs.push(job);
       await updateLocalOrder(order.id, (current) => ({
@@ -410,7 +414,8 @@ export async function startApiGeneration(order: LocalOrder) {
       const job = buildGenerationJob(item, index, {
         taskId: `create-failed-${order.id}-${item.imageNumber}`,
         status: "failed",
-        error: message
+        error: message,
+        resolution: runtimeConfig.apimartResolution
       });
       jobs.push(job);
       await updateLocalOrder(order.id, (current) => ({
@@ -452,10 +457,20 @@ async function saveCompletedApiJob(orderId: string, job: GenerationJob, imageUrl
   const taskSuffix = job.task_id.replace(/^create-failed-/, "").slice(0, 8);
   await appendApiProgress(orderId, [`APIMart 返回图片 URL：${imageUrl}`, `图 ${job.image_number} 正在下载生成图。`]);
   const downloaded = await apimartDownloadImage(imageUrl);
-  const generated = await saveGeneratedImageBuffer(downloaded.buffer, orderId, job.image_number - 1, downloaded.mimeType, taskSuffix);
-  await appendApiProgress(orderId, [`图 ${job.image_number} 原图已保存到 Supabase Storage：${generated.relativePath}`]);
-  const preview = await savePreviewImageBuffer(await createWatermarkedPreviewBuffer(downloaded.buffer), orderId, job.image_number, taskSuffix);
-  await appendApiProgress(orderId, [`图 ${job.image_number} 水印预览图已保存到 Supabase Storage：${preview.relativePath}`]);
+
+  // 并行：上传原图 + 生成并上传预览图（节省 ~2-3 秒/张）
+  const [generated, preview] = await Promise.all([
+    saveGeneratedImageBuffer(downloaded.buffer, orderId, job.image_number - 1, downloaded.mimeType, taskSuffix),
+    (async () => {
+      const previewBuf = await createWatermarkedPreviewBuffer(downloaded.buffer);
+      return savePreviewImageBuffer(previewBuf, orderId, job.image_number, taskSuffix);
+    })()
+  ]);
+
+  await appendApiProgress(orderId, [
+    `图 ${job.image_number} 原图已保存到 Supabase Storage：${generated.relativePath}`,
+    `图 ${job.image_number} 水印预览图已保存到 Supabase Storage：${preview.relativePath}`
+  ]);
   const metadata = await imageMetadataFromBuffer(downloaded.buffer);
   await addLocalAsset(orderId, {
     kind: "generated",
@@ -511,35 +526,44 @@ export async function pollApiGeneration(orderId: string) {
   }
   if (!jobs.length) throw new Error("当前订单没有可查询的 APIMart task_id。");
 
-  for (const job of jobs) {
-    if (job.status === "completed") {
-      await appendApiProgress(orderId, [`图 ${job.image_number} 已完成，跳过重复保存。`]);
+  // 并行查询所有未完成的 job（避免串行查询耗时过长）
+  const jobsToPoll = jobs.filter((job) => job.status !== "completed" && job.status !== "failed");
+  const pollResults = await Promise.all(
+    jobsToPoll.map(async (job) => {
+      const pollCount = job.poll_count + 1;
+      try {
+        const result = await apimartGetTaskStatus(job.task_id);
+        return { job, result, ok: true as const, error: null as string | null, pollCount };
+      } catch (err) {
+        return { job, result: null, ok: false as const, error: errorSummary(err), pollCount };
+      }
+    })
+  );
+
+  let savedCount = 0;
+  const MAX_SAVE_PER_POLL = 5; // 每次 poll 最多保存 5 张（并行下载+上传，~6-9s < 10s Vercel 限制）
+
+  for (const { job, result, ok, error, pollCount } of pollResults) {
+    if (!ok) {
+      await appendApiProgress(orderId, [`图 ${job.image_number} 第 ${pollCount} 次查询失败：${error}`]);
+      await updateLocalOrder(orderId, (current) => ({
+        ...current,
+        status: "generating",
+        generation_jobs: (current.generation_jobs ?? []).map((item) => item.task_id === job.task_id ? {
+          ...item,
+          status: "failed",
+          poll_count: pollCount,
+          error,
+          updated_at: new Date().toISOString()
+        } : item)
+      }));
       continue;
     }
-    if (job.status === "failed") {
-      await appendApiProgress(orderId, [`图 ${job.image_number} 已失败，跳过查询：${job.error ?? "未记录错误"}`]);
-      continue;
-    }
-    const pollCount = job.poll_count + 1;
-    try {
-      const result = await apimartGetTaskStatus(job.task_id);
-      await appendApiProgress(orderId, [`图 ${job.image_number} 第 ${pollCount} 次查询：状态 ${result.status}`]);
-      if (["completed", "complete", "success", "succeeded", "done"].includes(result.status)) {
-        if (!result.imageUrl) throw new Error(`APIMart 任务 ${job.task_id} 已完成，但没有返回结果图片 URL。`);
-        await saveCompletedApiJob(orderId, job, result.imageUrl, result.status);
-        await updateLocalOrder(orderId, (current) => ({
-          ...current,
-          status: "generating",
-          generation_jobs: (current.generation_jobs ?? []).map((item) => item.task_id === job.task_id ? {
-            ...item,
-            status: "completed",
-            poll_count: pollCount,
-            result_image_url: result.imageUrl,
-            error: null,
-            updated_at: new Date().toISOString()
-          } : item)
-        }));
-      } else if (["failed", "failure", "cancelled", "canceled", "error"].includes(result.status)) {
+
+    await appendApiProgress(orderId, [`图 ${job.image_number} 第 ${pollCount} 次查询：状态 ${result!.status}`]);
+
+    if (["completed", "complete", "success", "succeeded", "done"].includes(result!.status)) {
+      if (!result!.imageUrl) {
         await updateLocalOrder(orderId, (current) => ({
           ...current,
           status: "generating",
@@ -547,12 +571,16 @@ export async function pollApiGeneration(orderId: string) {
             ...item,
             status: "failed",
             poll_count: pollCount,
-            error: `APIMart 返回失败状态：${result.status}`,
+            error: `APIMart 任务 ${job.task_id} 已完成，但没有返回结果图片 URL。`,
             updated_at: new Date().toISOString()
           } : item),
-          admin_note: appendApiProgressNoteText(current.admin_note, [`图 ${job.image_number} 生成失败：APIMart 返回状态 ${result.status}`])
+          admin_note: appendApiProgressNoteText(current.admin_note, [`图 ${job.image_number} 生成失败：APIMart 返回 completed 但没有图片 URL`])
         }));
-      } else {
+        continue;
+      }
+
+      // 限制每次 poll 最多保存 1 个 completed job，避免 Vercel 10s 超时
+      if (savedCount >= MAX_SAVE_PER_POLL) {
         await updateLocalOrder(orderId, (current) => ({
           ...current,
           status: "generating",
@@ -563,9 +591,40 @@ export async function pollApiGeneration(orderId: string) {
             updated_at: new Date().toISOString()
           } : item)
         }));
+        continue;
       }
-    } catch (error) {
-      const message = errorSummary(error);
+
+      try {
+        await saveCompletedApiJob(orderId, job, result!.imageUrl, result!.status);
+        savedCount++;
+        await updateLocalOrder(orderId, (current) => ({
+          ...current,
+          status: "generating",
+          generation_jobs: (current.generation_jobs ?? []).map((item) => item.task_id === job.task_id ? {
+            ...item,
+            status: "completed",
+            poll_count: pollCount,
+            result_image_url: result!.imageUrl,
+            error: null,
+            updated_at: new Date().toISOString()
+          } : item)
+        }));
+      } catch (err) {
+        const message = errorSummary(err);
+        await updateLocalOrder(orderId, (current) => ({
+          ...current,
+          status: "generating",
+          generation_jobs: (current.generation_jobs ?? []).map((item) => item.task_id === job.task_id ? {
+            ...item,
+            status: "failed",
+            poll_count: pollCount,
+            error: message,
+            updated_at: new Date().toISOString()
+          } : item),
+          admin_note: appendApiProgressNoteText(current.admin_note, [`图 ${job.image_number} 保存失败：${message}`])
+        }));
+      }
+    } else if (["failed", "failure", "cancelled", "canceled", "error"].includes(result!.status)) {
       await updateLocalOrder(orderId, (current) => ({
         ...current,
         status: "generating",
@@ -573,10 +632,21 @@ export async function pollApiGeneration(orderId: string) {
           ...item,
           status: "failed",
           poll_count: pollCount,
-          error: message,
+          error: `APIMart 返回失败状态：${result!.status}`,
           updated_at: new Date().toISOString()
         } : item),
-        admin_note: appendApiProgressNoteText(current.admin_note, [`图 ${job.image_number} 查询失败：${message}`])
+        admin_note: appendApiProgressNoteText(current.admin_note, [`图 ${job.image_number} 生成失败：APIMart 返回状态 ${result!.status}`])
+      }));
+    } else {
+      await updateLocalOrder(orderId, (current) => ({
+        ...current,
+        status: "generating",
+        generation_jobs: (current.generation_jobs ?? []).map((item) => item.task_id === job.task_id ? {
+          ...item,
+          status: "polling",
+          poll_count: pollCount,
+          updated_at: new Date().toISOString()
+        } : item)
       }));
     }
   }

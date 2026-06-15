@@ -1,9 +1,8 @@
 "use client";
 import { RefreshCw, Droplets, Rocket, Save, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
-import type { OrderStatus } from "@/lib/types";
-export function AdminOrderActions({ orderId, hasGenerated, status, hasThemes, adminNote: generationNote, updatedAt, hasActiveGenerationTasks }: { orderId: string; hasGenerated: boolean; status: OrderStatus; hasThemes: boolean; adminNote?: string | null; updatedAt?: string; hasActiveGenerationTasks?: boolean }) {
+import { useEffect, useState } from "react";
+export function AdminOrderActions({ orderId, hasGenerated, status, hasThemes, adminNote: generationNote, updatedAt, hasActiveGenerationTasks }: { orderId: string; hasGenerated: boolean; status: string; hasThemes: boolean; adminNote?: string | null; updatedAt?: string; hasActiveGenerationTasks?: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -11,7 +10,21 @@ export function AdminOrderActions({ orderId, hasGenerated, status, hasThemes, ad
   const [rejectReason, setRejectReason] = useState("");
   const [wmText, setWmText] = useState("aiwedding.space");
   const [wmOpacity, setWmOpacity] = useState(0.4);
-  const hasActiveTask = hasActiveGenerationTasks || Boolean(generationNote?.match(/task_id|任务轮询中|等待后续查询/));
+  const hasActiveTask = hasActiveGenerationTasks || status === "generating" || Boolean(generationNote?.match(/task_id|任务轮询中|等待后续查询/));
+
+  // 自动轮询：生成中时每 30 秒自动查询一次
+  useEffect(() => {
+    if (status !== "generating") return;
+    const interval = setInterval(async () => {
+      try {
+        await fetch(`/api/admin/orders/${orderId}/poll-generation`, { method: "POST" });
+        router.refresh();
+      } catch (e) {
+        console.error("Auto poll failed", e);
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [status, orderId, router]);
   const isStaleGenerating = status === "generating" && !hasGenerated && updatedAt ? Date.now() - new Date(updatedAt).getTime() > 10 * 60 * 1000 : false;
   const canStartGeneration = status === "ready_to_generate" || status === "generation_failed" || status === "failed" || (status === "generating" && (isStaleGenerating || hasActiveTask));
   const generationButtonText = (() => {
