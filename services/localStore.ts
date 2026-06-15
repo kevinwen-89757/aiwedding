@@ -30,6 +30,7 @@ function normalizeOrder(order: LocalOrder): LocalOrder {
   return {
     ...order,
     selected_theme_ids: order.selected_theme_ids ?? [],
+    selection_view_count: order.selection_view_count ?? 0,
     uploadedPhoto: order.uploadedPhoto ?? null,
     uploadedPhotos: order.uploadedPhotos ?? {},
     photo_type: order.photo_type ?? null,
@@ -121,7 +122,7 @@ export async function createLocalOrder(input: { customerName: FormDataEntryValue
   const now = new Date().toISOString();
   const photoTypeValue = str(input.photoType);
   const photo_type: Order["photo_type"] = photoTypeValue === "id_photo" || photoTypeValue === "casual_photo" ? photoTypeValue : null;
-  const order: LocalOrder = { id: randomUUID(), customer_name: str(input.customerName), customer_phone: str(input.customerPhone), customer_email: str(input.customerEmail), status: "pending_theme", deposit_amount_cents: 990, selected_count: 0, selection_amount_cents: 0, selected_theme_ids: [], uploadedPhoto: null, uploadedPhotos: {}, photo_type, id_photo_assets: {}, admin_note: null, reject_reason: null, created_at: now, updated_at: now, order_assets: [], payments: [] };
+  const order: LocalOrder = { id: randomUUID(), customer_name: str(input.customerName), customer_phone: str(input.customerPhone), customer_email: str(input.customerEmail), status: "pending_theme", deposit_amount_cents: 990, selected_count: 0, selection_amount_cents: 0, selected_theme_ids: [], uploadedPhoto: null, uploadedPhotos: {}, photo_type, id_photo_assets: {}, admin_note: null, reject_reason: null, selection_view_count: 0, created_at: now, updated_at: now, order_assets: [], payments: [] };
   if (isSupabaseStore()) {
     await saveSupabaseOrder(order);
     return order;

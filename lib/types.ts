@@ -101,6 +101,7 @@ export type Order = {
   generation_resolution?: "1K" | "2K" | "4K" | null;
   admin_note: string | null;
   reject_reason: string | null;
+  selection_view_count: number;
   metadata?: Record<string, unknown>;
   created_at: string;
   updated_at: string;

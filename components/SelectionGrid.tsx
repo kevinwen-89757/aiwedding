@@ -147,6 +147,11 @@ export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectio
     setSaving(false);
     if (response.ok) { router.push(`/orders/${orderId}/pay?kind=selection`); router.refresh(); }
   }
+  // 自动记录选片页浏览次数
+  useEffect(() => {
+    fetch(`/api/orders/${orderId}/selection-view`, { method: "POST" }).catch(() => {});
+  }, [orderId]);
+
   const hasIdPhotos = idPhotos.length > 0;
 
   return <>
@@ -264,7 +269,7 @@ export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectio
       <div className="selection-lightbox" role="dialog" aria-modal="true" aria-label={`第 ${previewAsset.sort_order} 张带水印预览图`} onClick={() => setPreviewAsset(null)}>
         <button className="selection-lightbox-close" type="button" onClick={() => setPreviewAsset(null)} aria-label="关闭预览"><X size={22} /></button>
         <div className="selection-lightbox-content" onClick={(event) => event.stopPropagation()}>
-          <p>#{previewAsset.sort_order} 高清水印预览 · 解锁后即可下载无水印原图</p>
+          <p>#{previewAsset.sort_order} 预览 · <strong style={{color:"#dc2626"}}>带水印 · 低分辨率</strong>，无法打印 · 解锁后获得 4K 无水印原图</p>
           <img src={previewUrl(previewAsset)} alt={`带水印大图预览 ${previewAsset.sort_order}`} />
         </div>
       </div>

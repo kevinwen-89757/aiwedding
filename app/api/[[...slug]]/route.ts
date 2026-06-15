@@ -169,6 +169,18 @@ async function handleDownloadGET(request: Request, assetId: string) {
   return new NextResponse(new Uint8Array(file), { headers: { "content-type": preview ? "image/jpeg" : asset.mime_type, "cache-control": "private, max-age=60" } });
 }
 
+async function handleOrderSelectionViewPOST(id: string) {
+  const { updateLocalOrder } = await import("@/services/localStore");
+  const { getLocalOrder } = await import("@/services/localStore");
+  const current = await getLocalOrder(id);
+  if (!current) return jsonError("Order not found", 404);
+  await updateLocalOrder(id, (order) => ({
+    ...order,
+    selection_view_count: (order.selection_view_count ?? 0) + 1
+  }));
+  return NextResponse.json({ ok: true });
+}
+
 async function handlePaymentsMockPOST(request: Request) {
   const { createMockTradeNo } = await import("@/services/payment");
   const { payLocalOrder } = await import("@/services/localStore");
@@ -483,6 +495,8 @@ export async function POST(request: Request, context: Context) {
   if ((p = match(slug, "orders", ":id", "poll-generation"))) return handleOrderPollGenerationPOST(p.id);
   // POST /api/orders/:id/id-photo-poll
   if ((p = match(slug, "orders", ":id", "id-photo-poll"))) return handleOrderIdPhotoPollPOST(p.id);
+  // POST /api/orders/:id/selection-view
+  if ((p = match(slug, "orders", ":id", "selection-view"))) return handleOrderSelectionViewPOST(p.id);
   // POST /api/payments/mock
   if ((p = match(slug, "payments", "mock"))) return handlePaymentsMockPOST(request);
   // POST /api/payments/wechat/create

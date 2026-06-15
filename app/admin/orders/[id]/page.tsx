@@ -88,6 +88,7 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
           <p>已选主题：{themeText}</p>
           <p>选片数量：{order.selected_count} 张</p>
           <p>选片金额：{formatCny(order.selection_amount_cents)}</p>
+          <p>选片页浏览：{order.selection_view_count ?? 0} 次</p>
           {order.admin_note ? (
             <details>
               <summary>生成/管理记录</summary>

@@ -22,8 +22,8 @@ export default async function SelectionPage({ params }: PageProps) {
           <span>解锁无水印原图</span>
           <span>无水印保存</span>
         </div>
-        <div className="info-box" style={{marginTop:16,background:"rgba(59,130,246,0.08)",border:"1px solid rgba(59,130,246,0.2)",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#3b82f6"}}>
-          <strong>提示：</strong>预览图仅作效果参考，带有水印；付费后获得可商用/可打印的 4K 高清无水印原图。
+        <div className="info-box" style={{marginTop:16,background:"rgba(239,68,68,0.08)",border:"1px solid rgba(239,68,68,0.25)",borderRadius:10,padding:"12px 16px",fontSize:14,color:"#dc2626"}}>
+          <strong>⚠️ 重要提示：</strong>当前预览图带有<strong>水印</strong>且分辨率仅限屏幕预览，<strong>无法满足大屏显示或打印精度</strong>。付费解锁后可获得<strong>4K 高清无水印原图</strong>，可商用、可打印。
         </div>
       </section>
       {generatedAssets.length === 0 ? (
