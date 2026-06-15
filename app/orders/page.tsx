@@ -78,6 +78,7 @@ export default async function OrderLookupPage({ searchParams }: PageProps) {
                     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                       <StatusBadge status={order.status} />
                       <span className="muted" style={{ fontSize: 13 }}>#{orderIdShort}</span>
+                      {order.customer_name ? <span style={{ fontSize: 14, fontWeight: 500 }}>{order.customer_name}</span> : null}
                     </div>
                     {themeNames ? (
                       <p style={{ margin: 0, fontSize: 14, color: "#444" }}>{themeNames}</p>
