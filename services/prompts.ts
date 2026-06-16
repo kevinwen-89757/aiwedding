@@ -1917,9 +1917,9 @@ Full body studio shot. The bride gently holds the groom's arm while the groom st
     themeDescription: "温暖复古色调，50年代彩色胶片质感，赫本标志性短发与红唇妆，呈现经典好莱坞黄金时代的优雅叙事。",
     suitableFor: "适合喜欢赫本经典形象、复古彩色胶片质感、法式优雅气质的用户。",
     defaultAspectRatio: "3:4",
-    coverImage: "/demo/themes/hepburn-timeless/cover-1.png",
-    coverImages: ["/demo/themes/hepburn-timeless/cover-1.png", "/demo/themes/hepburn-timeless/cover-2.png", "/demo/themes/hepburn-timeless/cover-3.png"],
-    galleryImages: ["/demo/themes/hepburn-timeless/1.png", "/demo/themes/hepburn-timeless/2.png", "/demo/themes/hepburn-timeless/3.jpg"],
+    coverImage: "/demo/themes/hepburn-timeless/cover-1.jpg",
+    coverImages: ["/demo/themes/hepburn-timeless/cover-1.jpg", "/demo/themes/hepburn-timeless/cover-2.jpg", "/demo/themes/hepburn-timeless/cover-3.jpg", "/demo/themes/hepburn-timeless/cover-4.jpg", "/demo/themes/hepburn-timeless/cover-5.jpg", "/demo/themes/hepburn-timeless/cover-6.jpg", "/demo/themes/hepburn-timeless/cover-7.jpg"],
+    galleryImages: ["/demo/themes/hepburn-timeless/1.jpg", "/demo/themes/hepburn-timeless/2.jpg", "/demo/themes/hepburn-timeless/3.jpg", "/demo/themes/hepburn-timeless/4.jpg", "/demo/themes/hepburn-timeless/5.jpg", "/demo/themes/hepburn-timeless/6.jpg", "/demo/themes/hepburn-timeless/7.jpg"],
     prompts: [
       {
         name: "A",
