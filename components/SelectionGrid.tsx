@@ -41,9 +41,7 @@ function AssetTile({ asset, selected, isUnlocked, onToggle, onPreview }: { asset
         aria-pressed={selected}
         aria-label={`选择第 ${asset.sort_order} 张`}
       >
-        <img src={previewUrl(asset)} alt={`带水印预览图 ${asset.sort_order}`} onContextMenu={preventDownload} onDragStart={preventDownload} style={{userSelect:"none",pointerEvents:"none"}} />
-        {/* 透明覆盖层 — 防止拖拽图片到桌面/另存为 */}
-        <div style={{position:"absolute",inset:0,zIndex:1,cursor:"pointer"}} onClick={isUnlocked ? undefined : onToggle} />
+        <img src={previewUrl(asset)} alt={`带水印预览图 ${asset.sort_order}`} onContextMenu={preventDownload} onDragStart={preventDownload} style={{userSelect:"none"}} draggable={false} />
         {isUnlocked ? (
           <span className="selection-unlocked-badge">已解锁</span>
         ) : (
@@ -230,7 +228,7 @@ export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectio
                     aria-pressed={selected.has(asset.id)}
                     aria-label={`选择 ${asset.theme_name ?? "风格"} 首图`}
                   >
-                    <img src={previewUrl(asset)} alt={`${asset.theme_name ?? "风格"} 首图`} onContextMenu={preventDownload} onDragStart={preventDownload} style={{userSelect:"none",pointerEvents:"none"}} />
+                    <img src={previewUrl(asset)} alt={`${asset.theme_name ?? "风格"} 首图`} onContextMenu={preventDownload} onDragStart={preventDownload} style={{userSelect:"none"}} draggable={false} />
                     <span className="selection-hover-hint">{selected.has(asset.id) ? "已选中" : "点击选择这张"}</span>
                     <span className="selection-photo-number">#{asset.sort_order}</span>
                     <span className="recommendation-theme-label">{asset.theme_name}</span>
@@ -277,7 +275,7 @@ export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectio
         <button className="selection-lightbox-close" type="button" onClick={() => setPreviewAsset(null)} aria-label="关闭预览"><X size={22} /></button>
         <div className="selection-lightbox-content" onClick={(event) => event.stopPropagation()}>
           <p>#{previewAsset.sort_order} 4K 原图 · <strong style={{color:"#dc2626"}}>带水印</strong> · 截图/转发均有水印 · 解锁后获得无水印原文件</p>
-          <img src={previewUrl(previewAsset)} alt={`4K 高清预览 ${previewAsset.sort_order}`} onContextMenu={preventDownload} onDragStart={preventDownload} style={{userSelect:"none",pointerEvents:"none"}} />
+          <img src={previewUrl(previewAsset)} alt={`4K 高清预览 ${previewAsset.sort_order}`} onContextMenu={preventDownload} onDragStart={preventDownload} style={{userSelect:"none"}} draggable={false} />
         </div>
       </div>
     ), document.body) : null}
