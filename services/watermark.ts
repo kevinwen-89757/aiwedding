@@ -39,13 +39,15 @@ export async function createWatermarkedPreviewBuffer(input: Buffer, options?: Wa
   return sharp(resizedBuffer).composite([{ input: Buffer.from(svg), gravity: "center" }]).jpeg({ quality: 82 }).toBuffer();
 }
 
-/** 4K 带水印预览：保持原始分辨率，不缩小，添加大号稀疏 www.aiwedding.space 水印。 */
+/** 4K 带水印预览：缩放至 max 2000px 宽，添加大号稀疏 www.aiwedding.space 水印。
+ *  2000px 足够屏幕清晰查看，处理速度快（~1-2s），避免 Vercel serverless 超时。 */
 export async function createWatermarked4KBuffer(input: Buffer, options?: WatermarkOptions) {
   const { text: watermarkText = "www.aiwedding.space", opacity = 0.5 } = options ?? {};
-  const metadata = await sharp(input).metadata();
-  const width = metadata.width ?? 3840;
-  const height = metadata.height ?? 5760;
-  // 大号字体，间隔疏朗，每行每列水印数更少，每个水印醒目
+  // 先缩放到 2000px 宽，大幅减少 sharp 处理时间
+  const resizedBuffer = await sharp(input).resize({ width: 2000, withoutEnlargement: true }).jpeg({ quality: 88 }).toBuffer();
+  const metadata = await sharp(resizedBuffer).metadata();
+  const width = metadata.width ?? 2000;
+  const height = metadata.height ?? 3000;
   const fontSize = Math.round(Math.min(width, height) / 10);
   const horizontalStep = Math.round(width * 0.35);
   const verticalStep = Math.round(height * 0.18);
@@ -55,7 +57,7 @@ export async function createWatermarked4KBuffer(input: Buffer, options?: Waterma
   const rows = Math.ceil((height * 3) / verticalStep);
   const marks = Array.from({ length: rows }).map((_, row) => Array.from({ length: columns }).map((__, col) => `<text x="${startX + col * horizontalStep}" y="${startY + row * verticalStep}">${watermarkText}</text>`).join("")).join("");
   const svg = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg"><style>text{font-family:Arial,sans-serif;font-size:${fontSize}px;font-weight:900;fill:rgba(255,255,255,${opacity});letter-spacing:4px}</style><g transform="rotate(-28 ${width / 2} ${height / 2})">${marks}</g></svg>`;
-  return sharp(input).composite([{ input: Buffer.from(svg), gravity: "center" }]).jpeg({ quality: 85 }).toBuffer();
+  return sharp(resizedBuffer).composite([{ input: Buffer.from(svg), gravity: "center" }]).jpeg({ quality: 85 }).toBuffer();
 }
 
 export async function createWatermarkedPreview(inputAbsolutePath: string, outputRelativePath: string) {

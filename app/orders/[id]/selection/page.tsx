@@ -10,7 +10,6 @@ export default async function SelectionPage({ params }: PageProps) {
   const order = await getLocalOrder(id);
   if (!order) return <main className="shell section">订单不存在</main>;
   const generatedAssets = order.order_assets.filter((asset: OrderAsset) => asset.kind === "generated" && asset.generation_type !== "id_photo");
-  const idPhotoAssets = order.order_assets.filter((asset: OrderAsset) => asset.kind === "generated" && asset.generation_type === "id_photo");
   return (
     <main className="shell selection-page">
       <section className="page-head">
@@ -32,7 +31,7 @@ export default async function SelectionPage({ params }: PageProps) {
           <Link className="button secondary" href={`/orders/${id}/status`}>返回订单状态</Link>
         </div>
       ) : (
-        <SelectionGrid orderId={id} assets={generatedAssets} idPhotoAssets={idPhotoAssets} hasPriorSelectionPayment={order.payments?.some((p) => p.kind === "selection" && p.status === "paid") ?? false} />
+        <SelectionGrid orderId={id} assets={generatedAssets} hasPriorSelectionPayment={order.payments?.some((p) => p.kind === "selection" && p.status === "paid") ?? false} />
       )}
     </main>
   );

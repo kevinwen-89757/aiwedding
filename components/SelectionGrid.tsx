@@ -63,7 +63,7 @@ function AssetTile({ asset, selected, isUnlocked, onToggle, onPreview }: { asset
   );
 }
 
-export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectionPayment }: { orderId: string; assets: OrderAsset[]; idPhotoAssets?: OrderAsset[]; hasPriorSelectionPayment?: boolean }) {
+export function SelectionGrid({ orderId, assets, hasPriorSelectionPayment }: { orderId: string; assets: OrderAsset[]; hasPriorSelectionPayment?: boolean }) {
   const router = useRouter();
   const uniqueAssets = assets.filter((a, i, arr) => arr.findIndex((x) => x.preview_path === a.preview_path) === i);
   const selectedAssets = uniqueAssets.filter((a) => a.generation_type !== "recommendation");
@@ -72,9 +72,6 @@ export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectio
   const [saving, setSaving] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<OrderAsset | null>(null);
   const [mounted, setMounted] = useState(false);
-  const [idPhotos, setIdPhotos] = useState<OrderAsset[]>(idPhotoAssets ?? []);
-  const [idPhotoPolling, setIdPhotoPolling] = useState(false);
-  const [idPhotoMessage, setIdPhotoMessage] = useState("");
   const unlockedCount = useMemo(() => Array.from(selected).filter((id) => assets.find((a) => a.id === id)?.is_unlocked).length, [selected, assets]);
   const newCount = selected.size - unlockedCount;
   const totalFreeCount = useMemo(() => Math.floor(selected.size / 10), [selected]);
@@ -91,40 +88,7 @@ export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectio
   const hasAnyUnlocked = assets.some((a) => a.is_unlocked);
   useEffect(() => { setMounted(true); }, []);
 
-  // Poll ID photo generation status
-  useEffect(() => {
-    if (!idPhotoAssets?.length) return;
-    setIdPhotos(idPhotoAssets);
-  }, [idPhotoAssets]);
-
-  useEffect(() => {
-    if (idPhotos.length > 0) return;
-    // If no id photos yet, start polling if this order might have id photo tasks
-    const poll = async () => {
-      try {
-        setIdPhotoPolling(true);
-        const res = await fetch(`/api/orders/${orderId}/id-photo-poll`, { method: "POST" });
-        if (!res.ok) { setIdPhotoPolling(false); return; }
-        const data = await res.json();
-        if (data.results) {
-          const allCompleted = Object.values(data.results as Record<string, { status: string }>).every((r) => r.status === "completed" || r.status === "failed");
-          if (allCompleted) {
-            clearInterval(interval);
-            setIdPhotoPolling(false);
-            // Refresh page to get latest assets
-            router.refresh();
-          } else {
-            setIdPhotoMessage("证件照生成中，请稍候…");
-          }
-        }
-      } catch {
-        setIdPhotoPolling(false);
-      }
-    };
-    const interval = setInterval(poll, 8000);
-    poll();
-    return () => clearInterval(interval);
-  }, [orderId, idPhotos.length, router]);
+  // Lightbox scroll lock
   useEffect(() => {
     if (!previewAsset) return;
     const originalOverflow = document.body.style.overflow;
@@ -157,28 +121,7 @@ export function SelectionGrid({ orderId, assets, idPhotoAssets, hasPriorSelectio
     fetch(`/api/orders/${orderId}/selection-view`, { method: "POST" }).catch(() => {});
   }, [orderId]);
 
-  const hasIdPhotos = idPhotos.length > 0;
-
   return <>
-    <div style={{ marginBottom: 20, display: "flex", justifyContent: "flex-end", gap: 12 }}>
-      {hasIdPhotos ? (
-        <div style={{ display: "flex", gap: 10, alignItems: "center", padding: "10px 14px", background: "#fafaf8", borderRadius: 10, border: "1px solid #e5e0d8" }}>
-          <span style={{ fontSize: 12, color: "#888", whiteSpace: "nowrap" }}>生成底图</span>
-          {idPhotos.map((asset) => (
-            <div key={asset.id} style={{ textAlign: "center" }}>
-              <div style={{ width: 56, height: 74, borderRadius: 6, overflow: "hidden", border: "1px solid #ddd", background: "#fff" }}>
-                <img src={previewUrl(asset)} alt={`${asset.person_role === "bride" ? "新娘" : "新郎"}底图`} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-              </div>
-              <span style={{ fontSize: 11, color: "#999", marginTop: 3, display: "block" }}>{asset.person_role === "bride" ? "新娘" : "新郎"}</span>
-            </div>
-          ))}
-        </div>
-      ) : idPhotoPolling ? (
-        <div style={{ padding: "8px 14px", background: "#fffbeb", borderRadius: 8, border: "1px solid #fde68a", fontSize: 12, color: "#b45309", whiteSpace: "nowrap" }}>
-          ⏳ {idPhotoMessage || "证件照底图生成中…"}
-        </div>
-      ) : null}
-    </div>
     <div className="promo-banner">
       <span className="promo-banner-text">🎁 满 10 张免 1 张</span>
       <span className="promo-banner-hint">

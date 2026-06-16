@@ -168,20 +168,29 @@ async function handleDownloadGET(request: Request, assetId: string) {
   if (!pathToRead) return jsonError("File not found", 404);
   if (!preview && !show4k && asset.kind === "generated" && !asset.is_unlocked) return jsonError("Asset is locked", 403);
   if (show4k && asset.kind === "generated") {
-    // 4K 水印预览：保持原图分辨率，加半透明水印防截图
+    // 4K 水印预览：缩放到 2000px + 半透明水印，速度快，防截图
     const { createWatermarked4KBuffer } = await import("@/services/watermark");
-    const file = await readStoredFile(asset.original_path);
-    const watermarked = await createWatermarked4KBuffer(file);
-    return new NextResponse(new Uint8Array(watermarked), {
-      headers: {
-        "content-type": "image/jpeg",
-        "cache-control": "no-cache, no-store, must-revalidate",
-        "content-disposition": "inline",
-        "x-content-type-options": "nosniff",
-        "pragma": "no-cache",
-        "expires": "0"
-      }
-    });
+    try {
+      const file = await readStoredFile(asset.original_path);
+      const watermarked = await createWatermarked4KBuffer(file);
+      return new NextResponse(new Uint8Array(watermarked), {
+        headers: {
+          "content-type": "image/jpeg",
+          "cache-control": "no-cache, no-store, must-revalidate",
+          "content-disposition": "inline",
+          "x-content-type-options": "nosniff",
+          "pragma": "no-cache",
+          "expires": "0"
+        }
+      });
+    } catch (e) {
+      console.error("[show4k] watermark failed:", e);
+      // fallback: 返回低分辨率水印预览
+      const fallbackFile = await readStoredFile(asset.preview_path ?? asset.original_path);
+      return new NextResponse(new Uint8Array(fallbackFile), {
+        headers: { "content-type": "image/jpeg", "cache-control": "private, max-age=60" }
+      });
+    }
   }
   const file = await readStoredFile(pathToRead);
   return new NextResponse(new Uint8Array(file), { headers: { "content-type": preview ? "image/jpeg" : asset.mime_type, "cache-control": "private, max-age=60" } });
