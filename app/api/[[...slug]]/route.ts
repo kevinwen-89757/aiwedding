@@ -363,7 +363,7 @@ async function handleAdminStartGenerationPOST(request: Request, id: string) {
   if (unauthorized) return unauthorized;
   const order = await getLocalOrder(id);
   if (!order) return jsonError("Order not found", 404);
-  if (order.status !== "ready_to_generate") return jsonError(`当前状态 ${order.status} 不允许启动生成，仅 ready_to_generate 可触发。`, 409);
+  if (order.status !== "ready_to_generate" && order.status !== "generation_failed" && order.status !== "failed") return jsonError(`当前状态 ${order.status} 不允许启动生成，仅 ready_to_generate / generation_failed / failed 可触发。`, 409);
   const references = getReferenceUploadAssets(order);
   const runtimeConfig = getGenerationRuntimeConfig(order);
   console.log("[start-generation] api precheck", { orderId: id, status: order.status, hasBridePhoto: Boolean(references.bride), hasGroomPhoto: Boolean(references.groom), selectedThemeIds: order.selected_theme_ids, generationMode: appConfig.generationMode, provider: appConfig.generationProvider, hasApiKey: Boolean(process.env.APIMART_API_KEY), testLimit: runtimeConfig.generationTestLimit, effectiveLimit: runtimeConfig.effectiveLimit, planLength: runtimeConfig.planLength, resolution: runtimeConfig.apimartResolution, timeoutMs: runtimeConfig.apimartTimeoutMs, plannedTaskCount: runtimeConfig.plannedTaskCount, generationJobsCount: order.generation_jobs?.length ?? 0, generatedAssetsCount: order.order_assets.filter((a) => a.kind === "generated").length });
