@@ -498,10 +498,10 @@ async function handleRedeemCodePOST(request: Request) {
     const order = await getLocalOrder(orderId);
     if (!order) return jsonError("订单不存在", 404);
 
-    const found = validateCode(code.trim());
+    const found = await validateCode(code.trim());
     if (!found) return jsonError("兑换码无效或已被使用", 400);
 
-    const ok = redeemCode(code.trim(), order.customer_name ?? "未知", orderId);
+    const ok = await redeemCode(code.trim(), order.customer_name ?? "未知", orderId);
     if (!ok) return jsonError("兑换失败，请稍后重试", 500);
 
     return NextResponse.json({ ok: true, message: "兑换成功！试看费已抵扣。" });

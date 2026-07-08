@@ -29,3 +29,14 @@ for each row execute function public.set_orders_updated_at();
 insert into storage.buckets (id, name, public)
 values ('ai-wedding-assets', 'ai-wedding-assets', false)
 on conflict (id) do nothing;
+
+-- Redeem codes for Xiaohongshu orders
+create table if not exists public.redeem_codes (
+  code text primary key,
+  status text not null default 'active',
+  redeemed_at timestamptz,
+  redeemed_by text,
+  order_id text
+);
+
+create index if not exists redeem_codes_status_idx on public.redeem_codes (status);
