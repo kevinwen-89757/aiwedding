@@ -2146,6 +2146,20 @@ main {
   border-top: 1px solid var(--line);
 }
 
+.pay-xhs-notice {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: #fef7e6;
+  border: 1px solid #f5e6b8;
+  border-radius: 10px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #8b6f2e;
+}
+.pay-xhs-notice strong {
+  color: #6b4f1e;
+}
+
 .admin-confirm-actions button {
   flex: 1;
 }

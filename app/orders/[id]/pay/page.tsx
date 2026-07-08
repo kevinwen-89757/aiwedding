@@ -44,6 +44,12 @@ export default async function PayPage({ params, searchParams }: PageProps) {
           </p>
         </div>
 
+        {isDeposit ? (
+          <div className="pay-xhs-notice">
+            <p><strong>📕 若从小红书下单：</strong>无需扫码支付，可直接点击下方「我已完成支付」，客服确认后即可继续。如已支付请忽略此提示。</p>
+          </div>
+        ) : null}
+
         <div className="actions">
           <Link className="button" href={`/orders/${id}/status`}>我已完成支付</Link>
           <Link className="button secondary" href={`/orders/${id}/status`}>返回订单</Link>
