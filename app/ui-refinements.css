@@ -2160,6 +2160,14 @@ main {
   color: #6b4f1e;
 }
 
+.redeem-code-panel {
+  margin-top: 18px;
+  padding: 16px;
+  background: #fffcf0;
+  border: 1px solid #e6d5a8;
+  border-radius: 12px;
+}
+
 .admin-confirm-actions button {
   flex: 1;
 }

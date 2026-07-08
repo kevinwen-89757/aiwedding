@@ -484,6 +484,32 @@ async function handleAdminCleanupDELETE(request: Request) {
   return NextResponse.json({ ok: true, deleted: ids.length, ids });
 }
 
+// ─── Redeem code handler ───────────────────────────────────────────────────────
+
+async function handleRedeemCodePOST(request: Request) {
+  const { getLocalOrder } = await import("@/services/localStore");
+  const { validateCode, redeemCode } = await import("@/services/codes");
+  try {
+    const body = await request.json();
+    const { code, orderId } = body;
+    if (!code || typeof code !== "string") return jsonError("请输入兑换码");
+    if (!orderId || typeof orderId !== "string") return jsonError("订单ID缺失");
+
+    const order = await getLocalOrder(orderId);
+    if (!order) return jsonError("订单不存在", 404);
+
+    const found = validateCode(code.trim());
+    if (!found) return jsonError("兑换码无效或已被使用", 400);
+
+    const ok = redeemCode(code.trim(), order.customer_name ?? "未知", orderId);
+    if (!ok) return jsonError("兑换失败，请稍后重试", 500);
+
+    return NextResponse.json({ ok: true, message: "兑换成功！试看费已抵扣。" });
+  } catch (e) {
+    return jsonError("请求格式错误", 400);
+  }
+}
+
 // ─── Main router ──────────────────────────────────────────────────────────────
 
 export async function GET(request: Request, context: Context) {
@@ -530,6 +556,8 @@ export async function POST(request: Request, context: Context) {
   if ((p = match(slug, "payments", "wechat", "create"))) return handlePaymentsWechatCreatePOST(request);
   // POST /api/payments/wechat/notify
   if ((p = match(slug, "payments", "wechat", "notify"))) return handlePaymentsWechatNotifyPOST(request);
+  // POST /api/redeem-code
+  if ((p = match(slug, "redeem-code"))) return handleRedeemCodePOST(request);
   // POST /api/admin/orders/:id/start-generation
   if ((p = match(slug, "admin", "orders", ":id", "start-generation"))) return handleAdminStartGenerationPOST(request, p.id);
   // POST /api/admin/orders/:id/poll-generation
