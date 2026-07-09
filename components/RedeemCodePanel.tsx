@@ -24,8 +24,11 @@ export function RedeemCodePanel({ orderId }: { orderId: string }) {
       });
       const data = await res.json();
       if (res.ok && data.ok) {
-        setMsg({ text: "✅ 兑换成功！试看费已抵扣，可继续完成支付。", ok: true });
-        setTimeout(() => router.refresh(), 1500);
+        setMsg({ text: "✅ " + (data.message ?? "兑换成功！正在准备生成照片…"), ok: true });
+        // 兑换成功后跳转到订单状态页（自动开始生成）
+        setTimeout(() => {
+          router.push(data.redirectTo ?? `/orders/${orderId}/status`);
+        }, 1500);
       } else {
         setMsg({ text: data.error ?? "兑换失败", ok: false });
       }
@@ -39,7 +42,7 @@ export function RedeemCodePanel({ orderId }: { orderId: string }) {
     <div className="redeem-code-panel">
       <h3 style={{ fontSize: 15, fontWeight: 600, margin: "0 0 4px" }}>📕 小红书兑换码</h3>
       <p style={{ fontSize: 13, color: "#666", margin: "0 0 10px", lineHeight: 1.5 }}>
-        若你从小红书购买了兑换码，输入 7 位数字码即可抵扣试看费用。
+        若你从小红书购买了兑换码，输入 7 位数字码即可直接开始生成照片，无需支付试看费用。
       </p>
       <div style={{ display: "flex", gap: 8 }}>
         <input

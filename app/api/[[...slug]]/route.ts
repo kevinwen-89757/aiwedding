@@ -487,7 +487,7 @@ async function handleAdminCleanupDELETE(request: Request) {
 // ─── Redeem code handler ───────────────────────────────────────────────────────
 
 async function handleRedeemCodePOST(request: Request) {
-  const { getLocalOrder } = await import("@/services/localStore");
+  const { payLocalOrder, getLocalOrder } = await import("@/services/localStore");
   const { validateCode, redeemCode } = await import("@/services/codes");
   try {
     const body = await request.json();
@@ -504,7 +504,20 @@ async function handleRedeemCodePOST(request: Request) {
     const ok = await redeemCode(code.trim(), order.customer_name ?? "未知", orderId);
     if (!ok) return jsonError("兑换失败，请稍后重试", 500);
 
-    return NextResponse.json({ ok: true, message: "兑换成功！试看费已抵扣。" });
+    // 兑换成功后，自动确认试看费支付 → 状态进到 ready_to_generate
+    await payLocalOrder(orderId, "deposit", `redeem-${code.trim()}-${Date.now()}`);
+
+    // 异步启动 AI 生成（使用 admin 源来触发完整生成流程）
+    const { generateOrderPreviews } = await import("@/services/generation");
+    void (async () => {
+      try {
+        await generateOrderPreviews(orderId, { source: "admin" });
+      } catch (e) {
+        console.error("[redeem-auto-generation] failed:", e);
+      }
+    })();
+
+    return NextResponse.json({ ok: true, message: "兑换成功！正在准备生成照片…", redirectTo: `/orders/${orderId}/status` });
   } catch (e) {
     return jsonError("请求格式错误", 400);
   }
