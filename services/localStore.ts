@@ -26,14 +26,14 @@ function stripRuntimeInstructionFromPrompt(prompt: string | null) {
 function hasSupabaseDb() {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
-// 订单数据库与图片存储解耦：只要配置了 Supabase，订单就走 Supabase Postgres（快、稳定），
-// 不受 storageDriver（图片走 COS / Supabase Storage）影响。
-// 原来 storageDriver=s3 时订单 JSON 也存到 COS，每次请求都要从腾讯云读写整个 orders.json，
-// 从 Vercel 跨区域访问极慢，叠加图片上传极易超过 60s → 504。解耦后订单库走 Supabase，
-// 彻底消除这部分慢速往返。图片仍按 storageDriver 走 COS。
+// 订单数据库与图片存储解耦。
+// 优先级：STORAGE_DRIVER=s3（腾讯云 COS）时订单库也走 COS —— 用户已迁移到腾讯云，
+// 且 Supabase 免费额度已超限（exceed_storage_size_quota）写入被禁止，故不再优先用 Supabase。
+// 否则若配置了 Supabase 则走 Supabase Postgres（快、稳定），都没有则本地文件兜底。
+// 图片始终按 storageDriver 走 COS / Supabase Storage。
 function dbMode(): "supabase" | "cos" | "local" {
-  if (hasSupabaseDb()) return "supabase";
   if (appConfig.storageDriver === "s3") return "cos";
+  if (hasSupabaseDb()) return "supabase";
   return "local";
 }
 function isSupabaseStore() {
@@ -163,6 +163,39 @@ export async function createLocalOrder(input: { customerName: FormDataEntryValue
   store.orders.push(order);
   await writeStore(store);
   return order;
+}
+// 单次读 + 单次写完成「建订单 + 写两张照片资产 + 记录上传信息」，
+// 把原来分散在 createLocalOrder / addLocalAsset×2 / updateLocalUploadedPhotos 的
+// 多次 COS 往返（COS 模式下每次都要读/写整个 orders.json）压缩到 2 次，
+// 避免从 Vercel 跨区域访问腾讯云叠加超时（504）。
+async function mutateStore(mutator: (store: LocalStore) => void) {
+  const store = await readStore();
+  mutator(store);
+  await writeStore(store);
+}
+export async function createOrderWithUploads(
+  orderInput: { customerName: FormDataEntryValue | null; customerPhone: FormDataEntryValue | null; customerEmail: FormDataEntryValue | null; photoType?: FormDataEntryValue | null },
+  orderId: string,
+  uploads: Array<{ role: "bride" | "groom"; original_path: string; mime_type: string; width: number | null; height: number | null; size: number }>
+): Promise<LocalOrder | null> {
+  const now = new Date().toISOString();
+  const photoTypeValue = str(orderInput.photoType);
+  const photo_type: Order["photo_type"] = photoTypeValue === "id_photo" || photoTypeValue === "casual_photo" ? photoTypeValue : null;
+  let created: LocalOrder | null = null;
+  await mutateStore((store) => {
+    const order: LocalOrder = { id: orderId, customer_name: str(orderInput.customerName), customer_phone: str(orderInput.customerPhone), customer_email: str(orderInput.customerEmail), status: "pending_theme", deposit_amount_cents: 990, selected_count: 0, selection_amount_cents: 0, selected_theme_ids: [], uploadedPhoto: null, uploadedPhotos: {}, photo_type, id_photo_assets: {}, admin_note: null, reject_reason: null, selection_view_count: 0, created_at: now, updated_at: now, order_assets: [], payments: [] };
+    const uploadedPhotos: NonNullable<LocalOrder["uploadedPhotos"]> = {} as NonNullable<LocalOrder["uploadedPhotos"]>;
+    uploads.forEach((u, idx) => {
+      const assetId = randomUUID();
+      order.order_assets.push({ id: assetId, order_id: orderId, kind: "upload", person_role: u.role, original_path: u.original_path, preview_path: null, mime_type: u.mime_type, width: u.width, height: u.height, generation_prompt: null, theme_id: null, theme_name: null, prompt_id: null, prompt_name: null, aspect_ratio: null, is_cover_prompt: false, generation_type: null, generation_provider: null, generation_model: null, generation_task_id: null, generation_status: null, generation_error: null, prompt_index: null, sort_order: idx, is_selected: false, is_unlocked: true, created_at: now });
+      uploadedPhotos[u.role] = { originalName: "", path: u.original_path, url: `/api/download/${assetId}`, mimeType: u.mime_type, size: u.size };
+    });
+    order.uploadedPhotos = uploadedPhotos;
+    order.uploadedPhoto = uploadedPhotos.bride ?? uploadedPhotos.groom ?? null;
+    store.orders.push(order);
+    created = order;
+  });
+  return created;
 }
 export async function updateLocalOrder(orderId: string, updater: (order: LocalOrder) => LocalOrder) {
   if (isSupabaseStore()) {
