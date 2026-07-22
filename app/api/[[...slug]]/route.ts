@@ -117,16 +117,32 @@ async function handleOrderSelectionPOST(request: Request, id: string) {
 }
 
 async function handleOrderPollGenerationPOST(id: string) {
-  const { pollApiGeneration } = await import("@/services/generation");
+  const { getGenerationRuntimeConfig, pollApiGeneration, generateOrderPreviews } = await import("@/services/generation");
   const { getLocalOrder } = await import("@/services/localStore");
   const current = await getLocalOrder(id);
   if (!current) return jsonError("Order not found", 404);
-  if (current.status !== "generating" || !current.generation_jobs?.length) {
-    return NextResponse.json({ ok: true, status: current.status, generatedCount: current.order_assets.filter((a) => a.kind === "generated").length });
-  }
   try {
+    // 自愈：状态页每 60 秒轮询时触发。
+    // 1) 已付款但未提交任务（ready_to_generate）→ 自动启动生成；
+    // 2) 生成中但任务数少于计划（被 60s 超时掐断）→ 续交剩余任务（断点续传）。
+    // 这样无论触发入口的后台任务是否被 Serverless 中断，都能靠客户端轮询自动救回。
+    const planned = getGenerationRuntimeConfig(current)?.plannedTaskCount ?? 0;
+    const submitted = current.generation_jobs?.length ?? 0;
+    if (current.status === "ready_to_generate" && submitted === 0) {
+      try {
+        await generateOrderPreviews(id, { source: "admin" });
+      } catch (e) {
+        console.error("[poll-auto-start] failed:", e);
+      }
+    } else if (current.status === "generating" && planned > 0 && submitted < planned) {
+      try {
+        await generateOrderPreviews(id, { source: "admin" });
+      } catch (e) {
+        console.error("[poll-resume] failed:", e);
+      }
+    }
     const order = await pollApiGeneration(id);
-    return NextResponse.json({ ok: true, status: order?.status, generatedCount: order?.order_assets.filter((a) => a.kind === "generated").length ?? 0 });
+    return NextResponse.json({ ok: true, status: order?.status, generatedCount: order?.order_assets.filter((a) => a.kind === "generated").length ?? 0, pendingCount: order?.generation_jobs?.filter((job) => job.status !== "completed" && job.status !== "failed").length ?? 0, generationJobsCount: order?.generation_jobs?.length ?? 0 });
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "Poll generation failed", 500);
   }
@@ -395,11 +411,12 @@ async function handleAdminStartGenerationPOST(request: Request, id: string) {
 }
 
 async function handleAdminPollGenerationPOST(request: Request, id: string) {
-  const { adminUnauthorized } = await import("@/lib/admin");
+  // 注意：此接口对订单本身公开（订单 ID 是不可猜测的 UUID，与状态页的
+  // 公开读取同等级别），供状态页每 60 秒自动轮询调用，无需 admin token。
+  // 若强制要求 admin 鉴权，状态页无法携带 token，自动轮询（含自动启动
+  // 生成与断点续传）将全部失效，只能靠后台手动点击。
   const { getGenerationRuntimeConfig, pollApiGeneration, generateOrderPreviews } = await import("@/services/generation");
   const { getLocalOrder } = await import("@/services/localStore");
-  const unauthorized = adminUnauthorized(request);
-  if (unauthorized) return unauthorized;
   try {
     const current = await getLocalOrder(id);
     const runtimeConfig = current ? getGenerationRuntimeConfig(current) : null;
@@ -407,11 +424,23 @@ async function handleAdminPollGenerationPOST(request: Request, id: string) {
     // 自愈：订单已付款（ready_to_generate）但尚未提交任何生成任务时，
     // 由状态页的自动轮询（每 60 秒）补启动生成。这样即便触发入口的
     // 后台任务被 Serverless 环境中断，也能靠客户端轮询自动救回。
-    if (current && current.status === "ready_to_generate" && (!current.generation_jobs || current.generation_jobs.length === 0)) {
-      try {
-        await generateOrderPreviews(id, { source: "admin" });
-      } catch (e) {
-        console.error("[poll-auto-start] failed:", e);
+    // 此外，若生成已开始（generating）但任务数少于计划，说明上一轮
+    // 被 60 秒超时掐断，这里续交剩余任务（断点续传）。
+    if (current) {
+      const planned = runtimeConfig?.plannedTaskCount ?? 0;
+      const submitted = current.generation_jobs?.length ?? 0;
+      if (current.status === "ready_to_generate" && submitted === 0) {
+        try {
+          await generateOrderPreviews(id, { source: "admin" });
+        } catch (e) {
+          console.error("[poll-auto-start] failed:", e);
+        }
+      } else if (current.status === "generating" && planned > 0 && submitted < planned) {
+        try {
+          await generateOrderPreviews(id, { source: "admin" });
+        } catch (e) {
+          console.error("[poll-resume] failed:", e);
+        }
       }
     }
     const order = await pollApiGeneration(id);

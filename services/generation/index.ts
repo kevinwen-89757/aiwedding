@@ -292,59 +292,79 @@ export async function startApiGeneration(order: LocalOrder) {
   if (!plan.length) throw new Error("没有可执行的生成计划。");
   const runtimeConfig = getGenerationRuntimeConfig(order);
 
-  await updateLocalOrder(order.id, (current) => ({
-    ...current,
-    status: "generating",
-    admin_note: apiProgressNote(["准备调用 APIMart。"], runtimeConfig.apimartResolution),
-    generation_jobs: []
-  }));
-  await clearLocalGeneratedAssets(order.id);
+  // 断点续传：Serverless 函数有 60 秒上限，23 张图一次性提交会超时。
+  // 若已有任务，说明是上一轮被中断后的续跑——不清空已生成资产、
+  // 不重置任务列表，只补交尚未提交的任务。
+  const existingJobs = order.generation_jobs ?? [];
+  const submittedImageNumbers = new Set(existingJobs.map((j) => j.image_number));
+  const remainingPlan = plan.filter((item) => !submittedImageNumbers.has(item.imageNumber));
 
-  const brideReference = await readStoredFile(bride.original_path);
-  const groomReference = await readStoredFile(groom.original_path);
-  console.log("[start-generation] reference photos loaded", {
-    brideSize: `${(brideReference.length / 1024).toFixed(0)}KB`,
-    groomSize: `${(groomReference.length / 1024).toFixed(0)}KB`,
-    brideMime: bride.mime_type,
-    groomMime: groom.mime_type
-  });
-  console.log("[start-generation] plan diagnostics", {
+  if (existingJobs.length === 0) {
+    await updateLocalOrder(order.id, (current) => ({
+      ...current,
+      status: "generating",
+      admin_note: apiProgressNote(["准备调用 APIMart。"], runtimeConfig.apimartResolution),
+      generation_jobs: []
+    }));
+    await clearLocalGeneratedAssets(order.id);
+  } else {
+    await updateLocalOrderStatus(order.id, "generating", {
+      admin_note: appendApiProgressNoteText(order.admin_note, ["检测到未提交完成的任务，继续补交剩余生成任务。"])
+    });
+  }
+
+  // 复用已上传的参考照片 URL，避免每次断点续传都重新上传。
+  // Vercel 函数只有 60 秒，23 张图分多次提交；参考照片上传一次即可。
+  const cachedUrls = (order.metadata?.apimartReferenceUrls ?? {}) as { bride?: string; groom?: string };
+  let brideImageUrl = cachedUrls.bride;
+  let groomImageUrl = cachedUrls.groom;
+
+  if (!brideImageUrl) {
+    const brideReference = await readStoredFile(bride.original_path);
+    console.log("[start-generation] uploading bride reference", { sizeKB: `${(brideReference.length / 1024).toFixed(0)}KB` });
+    brideImageUrl = await apimartUploadImage({
+      buffer: brideReference,
+      mimeType: bride.mime_type,
+      filename: path.basename(bride.original_path)
+    });
+    await updateLocalOrder(order.id, (current) => ({
+      ...current,
+      status: "generating",
+      metadata: { ...(current.metadata ?? {}), apimartReferenceUrls: { ...(current.metadata?.apimartReferenceUrls ?? {}), bride: brideImageUrl } },
+      admin_note: appendApiProgressNoteText(current.admin_note, ["新娘正脸照已上传到 AI 服务，准备上传新郎正脸照。"])
+    }));
+  }
+
+  if (!groomImageUrl) {
+    const groomReference = await readStoredFile(groom.original_path);
+    console.log("[start-generation] uploading groom reference", { sizeKB: `${(groomReference.length / 1024).toFixed(0)}KB` });
+    groomImageUrl = await apimartUploadImage({
+      buffer: groomReference,
+      mimeType: groom.mime_type,
+      filename: path.basename(groom.original_path)
+    });
+    await updateLocalOrder(order.id, (current) => ({
+      ...current,
+      status: "generating",
+      metadata: { ...(current.metadata ?? {}), apimartReferenceUrls: { ...(current.metadata?.apimartReferenceUrls ?? {}), groom: groomImageUrl } },
+      admin_note: appendApiProgressNoteText(current.admin_note, ["新郎正脸照已上传到 AI 服务，开始创建生成任务。"])
+    }));
+  }
+
+  console.log("[start-generation] reference photos ready", {
     orderId: order.id,
     plannedTaskCount: runtimeConfig.plannedTaskCount,
     planLength: plan.length,
     effectiveLimit: runtimeConfig.effectiveLimit,
     resolution: runtimeConfig.apimartResolution,
-    timeoutMs: runtimeConfig.apimartTimeoutMs
+    timeoutMs: runtimeConfig.apimartTimeoutMs,
+    brideCached: Boolean(cachedUrls.bride),
+    groomCached: Boolean(cachedUrls.groom)
   });
 
-  const brideImageUrl = await apimartUploadImage({
-    buffer: brideReference,
-    mimeType: bride.mime_type,
-    filename: path.basename(bride.original_path)
-  });
-  await updateLocalOrderStatus(order.id, "generating", { admin_note: apiProgressNote([`新娘正脸照已传到 APIMart：${brideImageUrl}`, "准备上传新郎正脸照。"], runtimeConfig.apimartResolution) });
-
-  console.log("[start-generation] 开始上传新郎照片...", { groomSize: `${(groomReference.length / 1024).toFixed(0)}KB` });
-  const groomImageUrl = await apimartUploadImage({
-    buffer: groomReference,
-    mimeType: groom.mime_type,
-    filename: path.basename(groom.original_path)
-  });
-  await updateLocalOrderStatus(order.id, "generating", {
-    admin_note: apiProgressNote([
-      `新娘正脸照已传到 APIMart：${brideImageUrl}`,
-      `新郎正脸照已传到 APIMart：${groomImageUrl}`,
-      `计划任务数：${runtimeConfig.plannedTaskCount}`,
-      `plan.length=${plan.length}`,
-      `effectiveLimit=${runtimeConfig.effectiveLimit ?? "未设置"}`,
-      `本次 resolution=${runtimeConfig.apimartResolution}`,
-      `本次 timeoutMs=${runtimeConfig.apimartTimeoutMs}`
-    ], runtimeConfig.apimartResolution)
-  });
-
-  const jobs: GenerationJob[] = [];
-  for (let index = 0; index < plan.length; index += 1) {
-    const item = plan[index];
+  const jobs: GenerationJob[] = [...existingJobs];
+  for (let index = 0; index < remainingPlan.length; index += 1) {
+    const item = remainingPlan[index];
     // Guard: 跳过空 prompt，防止 APIMart 返回 400
     if (!item.rawPrompt || item.rawPrompt.trim().length === 0) {
       const message = `图 ${item.imageNumber} prompt 为空，已跳过。请检查「${item.themeName}」风格的「${item.promptName}」prompt 是否已填写。`;
@@ -431,14 +451,18 @@ export async function startApiGeneration(order: LocalOrder) {
 
   const createdCount = jobs.filter((job) => job.status !== "failed").length;
   const failedCount = jobs.length - createdCount;
+  const stillPending = plan.length - jobs.length;
   await updateLocalOrder(order.id, (current) => ({
     ...current,
     status: createdCount > 0 ? "generating" : "generation_failed",
     generation_jobs: jobs,
     admin_note: appendApiProgressNoteText(current.admin_note, [
-      `任务创建循环结束：计划 ${plan.length} 个，成功 ${createdCount} 个，失败 ${failedCount} 个，generation_jobs.length=${jobs.length}。`,
-      createdCount > 0 ? "请点击“查询生成结果”，或刷新后台继续查询。" : "所有 APIMart 任务创建失败，订单已标记 generation_failed。"
-    ])
+      `本轮提交：计划 ${plan.length} 个，已提交 ${jobs.length} 个，失败 ${failedCount} 个。`,
+      stillPending > 0
+        ? `还有 ${stillPending} 个任务待提交，系统会在下次轮询时自动续交。`
+        : "全部任务已提交，等待 APIMart 返回结果。",
+      failedCount > 0 && createdCount === 0 ? "所有 APIMart 任务创建失败，订单已标记 generation_failed。" : ""
+    ].filter(Boolean))
   }));
   return getLocalOrder(order.id);
 }
@@ -505,12 +529,8 @@ export async function pollApiGeneration(orderId: string) {
   const plannedTaskCount = getEffectiveOrderGenerationPlan(order).length;
   const generatedAssetCount = order.order_assets.filter((asset) => asset.kind === "generated").length;
   let jobs = order.generation_jobs ?? [];
-  await appendApiProgress(orderId, [
-    `poll 诊断：generation_jobs.length=${jobs.length}`,
-    `poll 诊断：generated_assets.length=${generatedAssetCount}`,
-    `poll 诊断：plannedTaskCount=${plannedTaskCount}`,
-    ...(jobs.length < plannedTaskCount ? ["警告：generation_jobs 数量少于计划任务数。"] : [])
-  ]);
+  // 状态页本身已显示计划/已完成/进行中数量，这里不再往管理备注里刷屏。
+  // 只有真正发生任务完成、失败等事件时才追加记录。
   if (!jobs.length) {
     const recovered = recoverLegacyApiJobs(order);
     if (recovered.length) {
