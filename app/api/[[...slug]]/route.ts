@@ -56,6 +56,13 @@ async function handleOrdersPOST(request: Request) {
 
   try {
     const startedAt = Date.now();
+    const contentType = request.headers.get("content-type") ?? "";
+    // ── 新流程：照片已由浏览器用预签名 URL 直传 COS，这里只接收元数据并落库订单 ──
+    // 请求体很小（仅 orderId + 两张照片的 COS key/尺寸），Vercel 函数几乎瞬时返回，
+    // 彻底避开「大图经 Vercel 转发到 COS 超过 60s → 504」的问题。
+    if (contentType.includes("application/json")) {
+      return await handleOrdersCreateJSON(request, startedAt);
+    }
     const formData = await request.formData();
     console.log("[create-order] formData parsed", { ms: Date.now() - startedAt, driver: appConfig.storageDriver, dbMode: appConfig.storageDriver === "s3" ? "cos" : (Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) ? "supabase" : "local") });
     const customerName = formData.get("customerName");
@@ -94,6 +101,69 @@ async function handleOrdersPOST(request: Request) {
     const message = error instanceof Error ? error.message : "Upload failed";
     console.error("POST /api/orders failed:", message);
     return NextResponse.json({ error: message || "创建订单失败，请稍后重试。", detail: uploadConfigDetail() }, { status: 500 });
+  }
+}
+
+// 新流程：前端先用 /api/orders/presign 拿到预签名 URL，把照片直传 COS，
+// 再带着「orderId + 照片的 COS 路径」调用本接口落库订单。函数内不再搬运照片字节。
+async function handleOrdersCreateJSON(request: Request, startedAt: number) {
+  const { createOrderWithUploads } = await import("@/services/localStore");
+  try {
+    const body = await request.json();
+    const orderId = typeof body.orderId === "string" && body.orderId.trim() ? body.orderId.trim() : null;
+    if (!orderId) return jsonError("缺少 orderId（请先完成照片上传）", 400);
+    const photos = Array.isArray(body.photos) ? body.photos : [];
+    if (photos.length < 1) return jsonError("缺少照片上传信息", 400);
+
+    const order = await createOrderWithUploads(
+      { customerName: body.customerName, customerPhone: body.customerPhone, customerEmail: body.customerEmail, photoType: body.photoType },
+      orderId,
+      photos.map((p: any) => ({
+        role: p.role === "groom" ? "groom" : "bride",
+        original_path: typeof p.relativePath === "string" ? p.relativePath : "",
+        mime_type: typeof p.mimeType === "string" ? p.mimeType : "image/jpeg",
+        width: typeof p.width === "number" ? p.width : null,
+        height: typeof p.height === "number" ? p.height : null,
+        size: typeof p.size === "number" ? p.size : 0,
+      }))
+    );
+    if (!order) return jsonError("创建订单失败，请稍后重试。", 500);
+    console.log("[create-order-json] done", { orderId: order.id, totalMs: Date.now() - startedAt });
+    return NextResponse.json({ orderId: order.id });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "创建订单失败";
+    console.error("POST /api/orders (json) failed:", message);
+    return NextResponse.json({ error: message || "创建订单失败，请稍后重试。" }, { status: 500 });
+  }
+}
+
+// 生成预签名 PUT URL，供浏览器把照片直接上传到 COS（不经过 Vercel 函数）。
+async function handleOrdersPresignPOST(request: Request) {
+  const { appConfig } = await import("@/lib/config");
+  const { presignPutObject, uploadRelativePath } = await import("@/services/storage");
+  if (appConfig.storageDriver !== "s3") {
+    return jsonError("当前存储模式不支持直传上传（仅 S3/COS 模式可用）", 400);
+  }
+  try {
+    const body = await request.json();
+    const uploads = Array.isArray(body.uploads) ? body.uploads : [];
+    if (uploads.length < 1 || uploads.length > 4) return jsonError("上传文件数量不合法（1-4 张）", 400);
+    const allowed = new Set(["image/jpeg", "image/png", "image/webp"]);
+    const orderId = randomUUID();
+    const result = [];
+    for (const u of uploads) {
+      const role: "bride" | "groom" = u.role === "groom" ? "groom" : "bride";
+      const mimeType = allowed.has(u.mimeType) ? u.mimeType : "image/jpeg";
+      const ext = mimeType === "image/png" ? ".png" : mimeType === "image/webp" ? ".webp" : ".jpg";
+      const relativePath = uploadRelativePath(orderId, role, ext);
+      const uploadUrl = await presignPutObject(relativePath, mimeType);
+      result.push({ role, relativePath, uploadUrl, mimeType });
+    }
+    return NextResponse.json({ orderId, uploads: result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "生成上传凭证失败";
+    console.error("POST /api/orders/presign failed:", message);
+    return NextResponse.json({ error: message || "生成上传凭证失败，请稍后重试。" }, { status: 500 });
   }
 }
 
@@ -644,6 +714,8 @@ export async function POST(request: Request, context: Context) {
 
   // POST /api/orders
   if ((p = match(slug, "orders"))) return handleOrdersPOST(request);
+  // POST /api/orders/presign （浏览器直传 COS 的预签名凭证）
+  if ((p = match(slug, "orders", "presign"))) return handleOrdersPresignPOST(request);
   // POST /api/orders/:id/themes
   if ((p = match(slug, "orders", ":id", "themes"))) return handleOrderThemesPOST(request, p.id);
   // POST /api/orders/:id/selection

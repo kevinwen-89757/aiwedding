@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 import { appConfig } from "@/lib/config";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
 import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 type StoredFile = { relativePath: string; absolutePath: string | null; mimeType: string };
@@ -105,12 +106,17 @@ function remotePath(prefix: string, fileName: string) {
   return `orders/${prefix}/${fileName}`;
 }
 
+/** 上传照片在 COS 中的统一相对路径；presign 与 saveUpload 必须共用，保证落库 key 一致 */
+export function uploadRelativePath(orderId: string, role: "bride" | "groom", ext: string) {
+  return remotePath(`${orderId}/uploads`, `${role}${ext}`);
+}
+
 export async function saveUpload(file: File, orderId: string, role?: "bride" | "groom"): Promise<StoredFile & { buffer: Buffer }> {
   if (!allowedMimeTypes.has(file.type)) throw new Error("Only JPEG, PNG, and WEBP images are supported.");
   if (file.size > 15 * 1024 * 1024) throw new Error("Image must be smaller than 15MB.");
   const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
   const relativePath = isRemoteStorage()
-    ? remotePath(`${orderId}/uploads`, `${role ?? randomUUID()}${ext}`)
+    ? uploadRelativePath(orderId, (role ?? "bride"), ext)
     : `uploads/${orderId}/${randomUUID()}${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
   await uploadObject(relativePath, buffer, file.type);
@@ -207,4 +213,26 @@ export async function readS3Json<T>(key: string): Promise<T | null> {
 
 export async function writeS3Json(key: string, data: unknown) {
   await uploadS3Object(key, Buffer.from(JSON.stringify(data, null, 2), "utf8"), "application/json");
+}
+
+// ---------- S3 预签名上传（浏览器直传 COS，绕过 Vercel 60s 网关上限） ----------
+/**
+ * 生成 PUT 预签名 URL，供浏览器把照片直接上传到 COS（不经过 Vercel 函数），
+ * 从而避免「大图经 Vercel 转发到 COS 超过 60s → 504」的问题。
+ * 默认不在签名里绑定请求体（UNSIGNED-PAYLOAD），仅绑定 Content-Type 头，
+ * 浏览器用相同 Content-Type 发起 PUT 即可。
+ */
+export async function presignPutObject(relativePath: string, contentType: string, expiresInSeconds = 600): Promise<string> {
+  if (!isS3Storage()) throw new Error("当前存储后端不支持预签名上传，请使用 S3/COS 模式。");
+  const s3 = appConfig.s3;
+  if (!s3?.bucket) throw new Error("S3_BUCKET 缺失，无法生成预签名 URL。");
+  try {
+    return await getSignedUrl(
+      getS3Client(),
+      new PutObjectCommand({ Bucket: s3.bucket, Key: relativePath, ContentType: contentType }),
+      { expiresIn: Math.min(Math.max(expiresInSeconds, 60), 3600) }
+    );
+  } catch (e: any) {
+    throw new Error(`生成预签名 URL 失败：${e?.message ?? String(e)}`);
+  }
 }

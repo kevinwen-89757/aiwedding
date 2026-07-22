@@ -67,6 +67,29 @@ async function compressImage(file: File, maxBytes = COMPRESS_TARGET_BYTES): Prom
 
 type FileInfo = { name: string; size: number; type: string; isHeic: boolean };
 
+/**
+ * 用预签名 URL 把文件直接 PUT 到 COS（不经过我们自己的服务器）。
+ * 这样大照片也不会占用 Vercel 函数的 60 秒上限。onProgress 回传绝对已上传字节数。
+ */
+function uploadToPresignedUrl(url: string, file: File, mimeType: string, onProgress: (loaded: number, total: number) => void): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url, true);
+    // 必须与后端签名时使用的 Content-Type 一致，否则 COS 会拒绝（403 签名不匹配）
+    xhr.setRequestHeader("Content-Type", mimeType);
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) onProgress(event.loaded, event.total);
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) resolve();
+      else reject(new Error(`照片上传失败（状态码 ${xhr.status}），请重试。`));
+    };
+    xhr.onerror = () => reject(new Error("网络错误，照片上传失败，请检查网络后重试。"));
+    xhr.ontimeout = () => reject(new Error("照片上传超时，请稍后重试。"));
+    xhr.send(file);
+  });
+}
+
 export function UploadForm() {
   const router = useRouter();
   const [error, setError] = useState("");
@@ -139,59 +162,94 @@ export function UploadForm() {
       setCompressing(false);
       setCompressStatus("");
 
-      const uploadForm = new FormData();
-      uploadForm.append("customerName", name);
-      uploadForm.append("customerPhone", phone);
-      uploadForm.append("photoType", photoType);
-      if (brideCompressed) uploadForm.append("bridePhoto", brideCompressed);
-      if (groomCompressed) uploadForm.append("groomPhoto", groomCompressed);
-      const email = form.get("customerEmail");
-      if (email) uploadForm.append("customerEmail", String(email));
+      const files: { role: "bride" | "groom"; file: File; mimeType: string; size: number }[] = [];
+      if (brideCompressed) files.push({ role: "bride", file: brideCompressed, mimeType: brideCompressed.type || "image/jpeg", size: brideCompressed.size });
+      if (groomCompressed) files.push({ role: "groom", file: groomCompressed, mimeType: groomCompressed.type || "image/jpeg", size: groomCompressed.size });
 
       setSubmitting(true);
-      setUploadPhase("uploading");
-      setUploadProgress(0);
+      try {
+        // 1) 向后端申请预签名上传凭证（极小请求，瞬时返回）
+        setUploadPhase("uploading");
+        setUploadProgress(0);
+        setCompressStatus("正在准备安全上传通道…");
+        const presignRes = await fetch("/api/orders/presign", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ uploads: files.map((f) => ({ role: f.role, fileName: f.file.name, mimeType: f.mimeType, size: f.size })) }),
+        });
+        const presignData = await presignRes.json().catch(() => ({} as any));
+        if (!presignRes.ok || !presignData.orderId || !Array.isArray(presignData.uploads)) {
+          throw new Error((presignData as any).error || "获取上传凭证失败，请稍后重试。");
+        }
+        const { orderId, uploads: presigned } = presignData as {
+          orderId: string;
+          uploads: Array<{ role: string; relativePath: string; uploadUrl: string; mimeType: string }>;
+        };
 
-      // 用 XMLHttpRequest 替代 fetch，以便监听上传进度，给用户实时进度条。
-      // XHR Promise 在 HTTP 错误（含 504）时 resolve 为 { error }，
-      // 在网络/超时错误时 reject（由下方外层 catch 兜底）。
-      const payload = await new Promise<{ orderId?: string; error?: string; detail?: string }>((resolve, reject) => {
-        const xhr = new XMLHttpRequest();
-        xhr.open("POST", "/api/orders");
-        xhr.upload.onprogress = (event) => {
-          if (event.lengthComputable) {
-            setUploadProgress(Math.round((event.loaded / event.total) * 100));
-          }
-        };
-        xhr.upload.onload = () => {
-          // 照片字节已发完，进入「服务器处理」阶段（创建订单 + 落库）
-          setUploadPhase("processing");
-          setUploadProgress(100);
-        };
-        xhr.onload = () => {
-          let data: { orderId?: string; error?: string; detail?: string } = {};
-          try { data = JSON.parse(xhr.responseText); } catch { /* 响应不可解析：保持空对象，下方按状态码兜底 */ }
-          if (xhr.status >= 200 && xhr.status < 300) {
-            resolve(data);
-          } else {
-            // 504 等网关错误会走到这里：responseText 通常为空，用状态码兜底提示
-            resolve({ error: data.error ?? `上传失败，状态码 ${xhr.status}`, detail: data.detail });
-          }
-        };
-        xhr.onerror = () => reject(new Error("网络错误，上传失败，请检查网络后重试。"));
-        xhr.ontimeout = () => reject(new Error("上传超时，请稍后重试。"));
-        xhr.send(uploadForm);
-      });
+        // 2) 浏览器把照片直接上传到 COS（不经过服务器），实时汇总进度
+        setCompressStatus("正在上传照片到云端…");
+        const totalBytes = files.reduce((s, f) => s + f.size, 0);
+        const perFileLoaded: Record<string, number> = {};
+        let loadedBytes = 0;
+        const metaByRole: Record<string, { width: number | null; height: number | null }> = {};
+        await Promise.all(
+          files.map(async (f) => {
+            const target = presigned.find((u) => u.role === f.role);
+            if (!target) throw new Error("上传凭证不完整，请重试。");
+            // 客户端直接计算尺寸，避免再把照片传回服务器算元数据
+            let dims: { width: number | null; height: number | null } = { width: null, height: null };
+            try {
+              const bmp = await createImageBitmap(f.file);
+              dims = { width: bmp.width, height: bmp.height };
+              bmp.close?.();
+            } catch { /* 尺寸未知不影响上传 */ }
+            metaByRole[f.role] = dims;
+            await uploadToPresignedUrl(target.uploadUrl, f.file, f.mimeType, (loaded) => {
+              const prev = perFileLoaded[f.role] ?? 0;
+              loadedBytes += loaded - prev;
+              perFileLoaded[f.role] = loaded;
+              const pct = totalBytes > 0 ? Math.min(99, Math.round((loadedBytes / totalBytes) * 100)) : 0;
+              setUploadProgress(pct);
+            });
+          })
+        );
+        setUploadProgress(100);
+        setUploadPhase("processing");
+        setCompressStatus("照片已上传，正在创建订单…");
 
-      if (payload.error) {
+        // 3) 仅把「orderId + 照片在 COS 的路径 + 尺寸」发给服务器落库（请求体极小，远小于 60s）
+        const email = form.get("customerEmail");
+        const createRes = await fetch("/api/orders", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            orderId,
+            customerName: name,
+            customerPhone: phone,
+            customerEmail: email ? String(email) : undefined,
+            photoType,
+            photos: files.map((f) => ({
+              role: f.role,
+              relativePath: presigned.find((u) => u.role === f.role)!.relativePath,
+              mimeType: f.mimeType,
+              width: metaByRole[f.role]?.width ?? null,
+              height: metaByRole[f.role]?.height ?? null,
+              size: f.size,
+            })),
+          }),
+        });
+        const createData = await createRes.json().catch(() => ({} as any));
+        if (!createRes.ok || !createData.orderId) {
+          throw new Error((createData as any).error || `创建订单失败（状态码 ${createRes.status}）`);
+        }
+        router.push(`/orders/${createData.orderId}/themes`);
+      } catch (err) {
         setSubmitting(false);
         setUploadPhase("idle");
         setUploadProgress(0);
-        const errorText = [payload.error, payload.detail].filter(Boolean).join("\n");
-        setError(errorText);
-        return;
+        setCompressStatus("");
+        setError(err instanceof Error ? err.message : "上传失败，请稍后重试。");
       }
-      router.push(`/orders/${payload.orderId}/themes`);
     } catch (err) {
       setCompressing(false);
       setCompressStatus("");
