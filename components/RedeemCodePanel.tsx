@@ -80,7 +80,7 @@ export function RedeemCodePanel({ orderId }: { orderId: string }) {
             cursor: busy || code.length !== 7 ? "not-allowed" : "pointer",
             whiteSpace: "nowrap",
           }}
-        >{busy ? "校验中…" : "兑换"}</button>
+        >{busy ? "处理中…" : "兑换"}</button>
       </div>
       {msg ? (
         <p style={{

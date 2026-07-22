@@ -11,6 +11,10 @@ function jsonError(msg: string, status = 400) {
   return NextResponse.json({ error: msg }, { status });
 }
 
+// 生成任务提交（上传参考图 + 调用 APIMart 创建任务）约需 15-30 秒，
+// 默认 10 秒超时会被 Vercel 杀掉，故统一放宽到 60 秒（Hobby 上限）。
+export const maxDuration = 60;
+
 // ─── Route helpers ───────────────────────────────────────────────────────────
 
 function match(slug: string[], ...pattern: (string | null)[]): Record<string, string> | null {
@@ -217,9 +221,17 @@ async function handlePaymentsMockPOST(request: Request) {
   try {
     const order = await payLocalOrder(body.orderId, body.kind, createMockTradeNo(body.kind));
     if (order && body.kind === "deposit") {
-      void (async () => { try { await generateOrderPreviews(body.orderId, { source: "admin" }); } catch (e) { console.error("[auto-generation] failed:", e); } })();
+      try {
+        await generateOrderPreviews(body.orderId, { source: "admin" });
+      } catch (e) {
+        console.error("[auto-generation] failed:", e);
+      }
       if (order.photo_type === "casual_photo") {
-        void (async () => { try { await generateIdPhotoTasks(body.orderId); } catch (e) { console.error("[id-photo] failed:", e); } })();
+        try {
+          await generateIdPhotoTasks(body.orderId);
+        } catch (e) {
+          console.error("[id-photo] failed:", e);
+        }
       }
     }
     return order ? NextResponse.json({ ok: true }) : jsonError("Order not found", 404);
@@ -258,7 +270,6 @@ async function handlePaymentsWechatNotifyPOST(request: Request) {
   const { parseXml, verifyNotifySign, buildXml } = await import("@/services/wechatPay");
   const { appConfig } = await import("@/lib/config");
   const { listLocalOrders, payLocalOrder } = await import("@/services/localStore");
-  const { generateOrderPreviews } = await import("@/services/generation");
   const xml = await request.text();
   const data = parseXml(xml);
   const wx = appConfig.wechatPay;
@@ -273,9 +284,9 @@ async function handlePaymentsWechatNotifyPOST(request: Request) {
   if (!order) return new NextResponse(buildXml({ return_code: "FAIL", return_msg: "订单不存在" }), { status: 404, headers: { "Content-Type": "application/xml" } });
   try {
     await payLocalOrder(order.id, kind as "deposit" | "selection", outTradeNo);
-    if (kind === "deposit") {
-      void (async () => { try { await generateOrderPreviews(order.id, { source: "admin" }); } catch (e) { console.error("[auto-generation] wechat:", e); } })();
-    }
+    // 注意：不在此处触发生成。微信要求回调必须在数秒内返回 SUCCESS，
+    // 否则会重复通知。生成由状态页每 60 秒的自动轮询（poll-generation
+    // 自愈逻辑）在用户停留在状态页时自动补启动。
   } catch (error) {
     const msg = error instanceof Error ? error.message : "支付确认失败";
     return new NextResponse(buildXml({ return_code: "FAIL", return_msg: msg }), { status: 500, headers: { "Content-Type": "application/xml" } });
@@ -325,9 +336,17 @@ async function handleAdminOrderByIdPATCH(request: Request, id: string) {
   }
   if (body.action === "confirm_deposit") {
     await confirmLocalPayment(id, "deposit");
-    void (async () => { try { await generateOrderPreviews(id, { source: "admin" }); } catch (e) { console.error("[auto-generation] failed:", e); } })();
+    try {
+      await generateOrderPreviews(id, { source: "admin" });
+    } catch (e) {
+      console.error("[auto-generation] failed:", e);
+    }
     if (current.photo_type === "casual_photo") {
-      void (async () => { try { await generateIdPhotoTasks(id); } catch (e) { console.error("[id-photo] failed:", e); } })();
+      try {
+        await generateIdPhotoTasks(id);
+      } catch (e) {
+        console.error("[id-photo] failed:", e);
+      }
     }
     return NextResponse.json({ ok: true });
   }
@@ -377,7 +396,7 @@ async function handleAdminStartGenerationPOST(request: Request, id: string) {
 
 async function handleAdminPollGenerationPOST(request: Request, id: string) {
   const { adminUnauthorized } = await import("@/lib/admin");
-  const { getGenerationRuntimeConfig, pollApiGeneration } = await import("@/services/generation");
+  const { getGenerationRuntimeConfig, pollApiGeneration, generateOrderPreviews } = await import("@/services/generation");
   const { getLocalOrder } = await import("@/services/localStore");
   const unauthorized = adminUnauthorized(request);
   if (unauthorized) return unauthorized;
@@ -385,6 +404,16 @@ async function handleAdminPollGenerationPOST(request: Request, id: string) {
     const current = await getLocalOrder(id);
     const runtimeConfig = current ? getGenerationRuntimeConfig(current) : null;
     console.log("[poll-generation] api precheck", { orderId: id, status: current?.status, effectiveLimit: runtimeConfig?.effectiveLimit, planLength: runtimeConfig?.planLength, plannedTaskCount: runtimeConfig?.plannedTaskCount, resolution: runtimeConfig?.apimartResolution, timeoutMs: runtimeConfig?.apimartTimeoutMs, generationJobsCount: current?.generation_jobs?.length ?? 0, generatedAssetsCount: current?.order_assets.filter((a) => a.kind === "generated").length ?? 0 });
+    // 自愈：订单已付款（ready_to_generate）但尚未提交任何生成任务时，
+    // 由状态页的自动轮询（每 60 秒）补启动生成。这样即便触发入口的
+    // 后台任务被 Serverless 环境中断，也能靠客户端轮询自动救回。
+    if (current && current.status === "ready_to_generate" && (!current.generation_jobs || current.generation_jobs.length === 0)) {
+      try {
+        await generateOrderPreviews(id, { source: "admin" });
+      } catch (e) {
+        console.error("[poll-auto-start] failed:", e);
+      }
+    }
     const order = await pollApiGeneration(id);
     return NextResponse.json({ ok: true, status: order?.status, generatedCount: order?.order_assets.filter((a) => a.kind === "generated").length ?? 0, pendingCount: order?.generation_jobs?.filter((job) => job.status !== "completed" && job.status !== "failed").length ?? 0, generationJobsCount: order?.generation_jobs?.length ?? 0 });
   } catch (error) {
@@ -522,15 +551,15 @@ async function handleRedeemCodePOST(request: Request) {
     // 兑换成功后，自动确认试看费支付 → 状态进到 ready_to_generate
     await payLocalOrder(orderId, "deposit", `redeem-${code.trim()}-${Date.now()}`);
 
-    // 异步启动 AI 生成（使用 admin 源来触发完整生成流程）
+    // 同步启动 AI 生成（使用 admin 源触发完整生成流程）。
+    // 注意：必须在 return 之前 await 完成，否则 Vercel 会在响应返回后
+    // 冻结函数、掐断后台任务，导致生成任务从未被提交。
     const { generateOrderPreviews } = await import("@/services/generation");
-    void (async () => {
-      try {
-        await generateOrderPreviews(orderId, { source: "admin" });
-      } catch (e) {
-        console.error("[redeem-auto-generation] failed:", e);
-      }
-    })();
+    try {
+      await generateOrderPreviews(orderId, { source: "admin" });
+    } catch (e) {
+      console.error("[redeem-auto-generation] failed:", e);
+    }
 
     return NextResponse.json({ ok: true, message: "兑换成功！正在准备生成照片…", redirectTo: `/orders/${orderId}/status` });
   } catch (e) {
