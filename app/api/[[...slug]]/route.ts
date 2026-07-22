@@ -118,7 +118,7 @@ async function handleOrdersCreateJSON(request: Request, startedAt: number) {
     const order = await createOrderWithUploads(
       { customerName: body.customerName, customerPhone: body.customerPhone, customerEmail: body.customerEmail, photoType: body.photoType },
       orderId,
-      photos.map((p: any) => ({
+      photos.map((p: Record<string, unknown>) => ({
         role: p.role === "groom" ? "groom" : "bride",
         original_path: typeof p.relativePath === "string" ? p.relativePath : "",
         mime_type: typeof p.mimeType === "string" ? p.mimeType : "image/jpeg",

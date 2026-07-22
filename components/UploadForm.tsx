@@ -177,9 +177,9 @@ export function UploadForm() {
           headers: { "content-type": "application/json" },
           body: JSON.stringify({ uploads: files.map((f) => ({ role: f.role, fileName: f.file.name, mimeType: f.mimeType, size: f.size })) }),
         });
-        const presignData = await presignRes.json().catch(() => ({} as any));
+        const presignData: { orderId?: string; uploads?: unknown[]; error?: string } = await presignRes.json().catch(() => ({}));
         if (!presignRes.ok || !presignData.orderId || !Array.isArray(presignData.uploads)) {
-          throw new Error((presignData as any).error || "获取上传凭证失败，请稍后重试。");
+          throw new Error(presignData.error || "获取上传凭证失败，请稍后重试。");
         }
         const { orderId, uploads: presigned } = presignData as {
           orderId: string;
@@ -238,9 +238,9 @@ export function UploadForm() {
             })),
           }),
         });
-        const createData = await createRes.json().catch(() => ({} as any));
+        const createData: { orderId?: string; error?: string } = await createRes.json().catch(() => ({}));
         if (!createRes.ok || !createData.orderId) {
-          throw new Error((createData as any).error || `创建订单失败（状态码 ${createRes.status}）`);
+          throw new Error(createData.error || `创建订单失败（状态码 ${createRes.status}）`);
         }
         router.push(`/orders/${createData.orderId}/themes`);
       } catch (err) {
