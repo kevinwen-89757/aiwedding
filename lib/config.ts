@@ -1,6 +1,10 @@
+const hasS3Config = Boolean(
+  process.env.S3_ENDPOINT && process.env.S3_BUCKET && process.env.S3_ACCESS_KEY_ID && process.env.S3_SECRET_ACCESS_KEY
+);
 const storageDriver: "local" | "supabase" | "s3" =
   process.env.STORAGE_DRIVER === "supabase" ? "supabase"
   : process.env.STORAGE_DRIVER === "s3" ? "s3"
+  : hasS3Config ? "s3"
   : "local";
 
 export const appConfig = {
