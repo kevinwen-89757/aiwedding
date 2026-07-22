@@ -237,18 +237,21 @@ async function handlePaymentsMockPOST(request: Request) {
   try {
     const order = await payLocalOrder(body.orderId, body.kind, createMockTradeNo(body.kind));
     if (order && body.kind === "deposit") {
-      try {
-        await generateOrderPreviews(body.orderId, { source: "admin" });
-      } catch (e) {
-        console.error("[auto-generation] failed:", e);
-      }
-      if (order.photo_type === "casual_photo") {
+      // 后台启动；状态页轮询会兜底续交。
+      void (async () => {
         try {
-          await generateIdPhotoTasks(body.orderId);
+          await generateOrderPreviews(body.orderId, { source: "admin" });
         } catch (e) {
-          console.error("[id-photo] failed:", e);
+          console.error("[auto-generation] failed:", e);
         }
-      }
+        if (order.photo_type === "casual_photo") {
+          try {
+            await generateIdPhotoTasks(body.orderId);
+          } catch (e) {
+            console.error("[id-photo] failed:", e);
+          }
+        }
+      })();
     }
     return order ? NextResponse.json({ ok: true }) : jsonError("Order not found", 404);
   } catch (error) {
@@ -352,18 +355,21 @@ async function handleAdminOrderByIdPATCH(request: Request, id: string) {
   }
   if (body.action === "confirm_deposit") {
     await confirmLocalPayment(id, "deposit");
-    try {
-      await generateOrderPreviews(id, { source: "admin" });
-    } catch (e) {
-      console.error("[auto-generation] failed:", e);
-    }
-    if (current.photo_type === "casual_photo") {
+    // 后台启动；状态页轮询会兜底续交。
+    void (async () => {
       try {
-        await generateIdPhotoTasks(id);
+        await generateOrderPreviews(id, { source: "admin" });
       } catch (e) {
-        console.error("[id-photo] failed:", e);
+        console.error("[auto-generation] failed:", e);
       }
-    }
+      if (current.photo_type === "casual_photo") {
+        try {
+          await generateIdPhotoTasks(id);
+        } catch (e) {
+          console.error("[id-photo] failed:", e);
+        }
+      }
+    })();
     return NextResponse.json({ ok: true });
   }
   if (body.action === "confirm_selection") {
@@ -580,17 +586,18 @@ async function handleRedeemCodePOST(request: Request) {
     // 兑换成功后，自动确认试看费支付 → 状态进到 ready_to_generate
     await payLocalOrder(orderId, "deposit", `redeem-${code.trim()}-${Date.now()}`);
 
-    // 同步启动 AI 生成（使用 admin 源触发完整生成流程）。
-    // 注意：必须在 return 之前 await 完成，否则 Vercel 会在响应返回后
-    // 冻结函数、掐断后台任务，导致生成任务从未被提交。
+    // 后台启动 AI 生成。即使函数返回后被 Vercel 冻结/中断，
+    // 状态页每 60 秒的轮询也会检测到 ready_to_generate 并自动续交（已缓存参考图 URL）。
     const { generateOrderPreviews } = await import("@/services/generation");
-    try {
-      await generateOrderPreviews(orderId, { source: "admin" });
-    } catch (e) {
-      console.error("[redeem-auto-generation] failed:", e);
-    }
+    void (async () => {
+      try {
+        await generateOrderPreviews(orderId, { source: "admin" });
+      } catch (e) {
+        console.error("[redeem-auto-generation] failed:", e);
+      }
+    })();
 
-    return NextResponse.json({ ok: true, message: "兑换成功！正在准备生成照片…", redirectTo: `/orders/${orderId}/status` });
+    return NextResponse.json({ ok: true, message: "兑换成功！系统正在后台自动开始生成，请稍后在状态页查看进度。", redirectTo: `/orders/${orderId}/status` });
   } catch (e) {
     return jsonError("请求格式错误", 400);
   }
