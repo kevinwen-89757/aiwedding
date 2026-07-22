@@ -3,7 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { appConfig } from "@/lib/config";
 import type { Order, OrderAsset, OrderStatus } from "@/lib/types";
-import { absoluteStoragePath } from "@/services/storage";
+import { absoluteStoragePath, readS3Json, writeS3Json, COS_DATA_PREFIX } from "@/services/storage";
 import { assertSupabaseStoreReady, deleteSupabaseOrder, getSupabaseOrder, listSupabaseOrders, saveSupabaseOrder } from "@/services/supabaseStore";
 
 type LocalPayment = { id: string; order_id: string; kind: "deposit" | "selection"; status: "paid"; amount_cents: number; provider: "mock"; provider_trade_no: string; paid_at: string; created_at: string };
@@ -25,6 +25,12 @@ function stripRuntimeInstructionFromPrompt(prompt: string | null) {
 }
 function isSupabaseStore() {
   return appConfig.storageDriver === "supabase";
+}
+function isCosStore() {
+  return appConfig.storageDriver === "s3";
+}
+function ordersCosKey() {
+  return `${COS_DATA_PREFIX}/orders.json`;
 }
 function normalizeOrder(order: LocalOrder): LocalOrder {
   return {
@@ -61,6 +67,11 @@ export async function ensureLocalStore() {
     await assertSupabaseStoreReady();
     return;
   }
+  if (isCosStore()) {
+    const existing = await readS3Json<LocalStore>(ordersCosKey());
+    if (!existing) await writeS3Json(ordersCosKey(), emptyStore());
+    return;
+  }
   await mkdir(absoluteStoragePath(""), { recursive: true });
   await mkdir(absoluteStoragePath("uploads"), { recursive: true });
   await mkdir(absoluteStoragePath("generated"), { recursive: true });
@@ -74,6 +85,10 @@ async function readStore(): Promise<LocalStore> {
   if (isSupabaseStore()) {
     return { orders: (await listSupabaseOrders()).map((order) => normalizeOrder(order)) };
   }
+  if (isCosStore()) {
+    const store = await readS3Json<LocalStore>(ordersCosKey());
+    return { orders: (store?.orders ?? []).map((order) => normalizeOrder(order)) };
+  }
   await ensureLocalStore();
   const raw = await readFile(ordersJsonPath(), "utf8");
   if (!raw.trim()) return emptyStore();
@@ -85,10 +100,14 @@ async function writeStore(store: LocalStore) {
     await Promise.all(store.orders.map((order) => saveSupabaseOrder(order)));
     return;
   }
-  await mkdir(path.dirname(ordersJsonPath()), { recursive: true });
-  await mkdir(absoluteStoragePath("backups"), { recursive: true });
   const nextJson = `${JSON.stringify(store, null, 2)}\n`;
   JSON.parse(nextJson);
+  if (isCosStore()) {
+    await writeS3Json(ordersCosKey(), store);
+    return;
+  }
+  await mkdir(path.dirname(ordersJsonPath()), { recursive: true });
+  await mkdir(absoluteStoragePath("backups"), { recursive: true });
   try {
     const current = await readFile(ordersJsonPath(), "utf8");
     if (current.trim()) JSON.parse(current);

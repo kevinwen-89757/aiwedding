@@ -458,29 +458,44 @@ async function handleAdminTaskPromptsGET(request: Request, id: string) {
 
 async function handleAdminCleanupGET(request: Request) {
   const { adminUnauthorized } = await import("@/lib/admin");
-  const { getSupabaseAdmin } = await import("@/lib/supabaseAdmin");
   const unauthorized = adminUnauthorized(request);
   if (unauthorized) return unauthorized;
-  const supabase = getSupabaseAdmin();
-  const { data, error } = await supabase.from("orders").select("id, status, created_at, order_payload->customer_name, order_payload->customer_phone").order("created_at", { ascending: false });
-  if (error) return jsonError(error.message, 500);
-  const orders = (data ?? []).map((row: Record<string, unknown>) => ({ id: row.id, status: row.status, created_at: row.created_at, customer_name: row.customer_name, customer_phone: row.customer_phone }));
+  if (process.env.STORAGE_DRIVER === "supabase") {
+    const { getSupabaseAdmin } = await import("@/lib/supabaseAdmin");
+    const supabase = getSupabaseAdmin();
+    const { data, error } = await supabase.from("orders").select("id, status, created_at, order_payload->customer_name, order_payload->customer_phone").order("created_at", { ascending: false });
+    if (error) return jsonError(error.message, 500);
+    const orders = (data ?? []).map((row: Record<string, unknown>) => ({ id: row.id, status: row.status, created_at: row.created_at, customer_name: row.customer_name, customer_phone: row.customer_phone }));
+    const toDelete = orders.filter((o) => o.status !== "completed");
+    return NextResponse.json({ total: orders.length, completed: orders.filter((o) => o.status === "completed").length, toDeleteCount: toDelete.length, toDelete });
+  }
+  // COS / 本地 JSON 模式
+  const { listLocalOrders } = await import("@/services/localStore");
+  const orders = await listLocalOrders();
   const toDelete = orders.filter((o) => o.status !== "completed");
   return NextResponse.json({ total: orders.length, completed: orders.filter((o) => o.status === "completed").length, toDeleteCount: toDelete.length, toDelete });
 }
 
 async function handleAdminCleanupDELETE(request: Request) {
   const { adminUnauthorized } = await import("@/lib/admin");
-  const { getSupabaseAdmin } = await import("@/lib/supabaseAdmin");
   const unauthorized = adminUnauthorized(request);
   if (unauthorized) return unauthorized;
-  const supabase = getSupabaseAdmin();
-  const { data, error: listError } = await supabase.from("orders").select("id, status").neq("status", "completed");
-  if (listError) return jsonError(listError.message, 500);
-  const ids = (data ?? []).map((row: { id: string }) => row.id);
-  if (ids.length === 0) return NextResponse.json({ ok: true, deleted: 0 });
-  const { error: deleteError } = await supabase.from("orders").delete().in("id", ids);
-  if (deleteError) return jsonError(deleteError.message, 500);
+  if (process.env.STORAGE_DRIVER === "supabase") {
+    const { getSupabaseAdmin } = await import("@/lib/supabaseAdmin");
+    const supabase = getSupabaseAdmin();
+    const { data, error: listError } = await supabase.from("orders").select("id, status").neq("status", "completed");
+    if (listError) return jsonError(listError.message, 500);
+    const ids = (data ?? []).map((row: { id: string }) => row.id);
+    if (ids.length === 0) return NextResponse.json({ ok: true, deleted: 0 });
+    const { error: deleteError } = await supabase.from("orders").delete().in("id", ids);
+    if (deleteError) return jsonError(deleteError.message, 500);
+    return NextResponse.json({ ok: true, deleted: ids.length, ids });
+  }
+  // COS / 本地 JSON 模式
+  const { listLocalOrders, deleteLocalOrder } = await import("@/services/localStore");
+  const orders = await listLocalOrders();
+  const ids = orders.filter((o) => o.status !== "completed").map((o) => o.id);
+  for (const id of ids) await deleteLocalOrder(id);
   return NextResponse.json({ ok: true, deleted: ids.length, ids });
 }
 

@@ -3,6 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { appConfig } from "@/lib/config";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 
 const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 type StoredFile = { relativePath: string; absolutePath: string | null; mimeType: string };
@@ -10,11 +11,19 @@ type StoredFile = { relativePath: string; absolutePath: string | null; mimeType:
 export function isSupabaseStorage() {
   return appConfig.storageDriver === "supabase";
 }
+export function isS3Storage() {
+  return appConfig.storageDriver === "s3";
+}
+/** Supabase / S3 这类云端存储使用 orders/ 前缀路径；本地存储用另一种布局 */
+function isRemoteStorage() {
+  return isSupabaseStorage() || isS3Storage();
+}
 
 export function absoluteStoragePath(relativePath: string) {
   return path.resolve(process.cwd(), appConfig.localStorageRoot, relativePath);
 }
 
+// ---------- Supabase Storage ----------
 async function uploadSupabaseObject(relativePath: string, buffer: Buffer, mimeType: string) {
   if (!appConfig.supabaseUrl) throw new Error("SUPABASE_URL 缺失，无法上传到 Supabase Storage。");
   if (!process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error("SUPABASE_SERVICE_ROLE_KEY 缺失，无法上传到 Supabase Storage。");
@@ -33,85 +42,118 @@ async function uploadSupabaseObject(relativePath: string, buffer: Buffer, mimeTy
   }
 }
 
+// ---------- S3 兼容存储（腾讯云 COS 等） ----------
+let _s3Client: S3Client | null = null;
+function getS3Client(): S3Client {
+  const s3 = appConfig.s3;
+  if (!s3?.endpoint || !s3.region || !s3.bucket || !s3.accessKeyId || !s3.secretAccessKey) {
+    throw new Error("S3 配置不完整：请在环境变量中设置 S3_ENDPOINT / S3_REGION / S3_BUCKET / S3_ACCESS_KEY_ID / S3_SECRET_ACCESS_KEY。");
+  }
+  if (!_s3Client) {
+    _s3Client = new S3Client({
+      region: s3.region,
+      endpoint: s3.endpoint,
+      credentials: { accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey },
+      forcePathStyle: false,
+    });
+  }
+  return _s3Client;
+}
+
+async function uploadS3Object(relativePath: string, buffer: Buffer, mimeType: string) {
+  const s3 = appConfig.s3;
+  if (!s3?.bucket) throw new Error("S3_BUCKET 缺失，无法上传。");
+  try {
+    await getS3Client().send(new PutObjectCommand({
+      Bucket: s3.bucket,
+      Key: relativePath,
+      Body: buffer,
+      ContentType: mimeType,
+    }));
+  } catch (e: any) {
+    throw new Error(`S3 上传失败：${e?.message ?? String(e)}`);
+  }
+}
+
+async function readS3Object(relativePath: string): Promise<Buffer> {
+  const s3 = appConfig.s3;
+  if (!s3?.bucket) throw new Error("S3_BUCKET 缺失，无法读取。");
+  try {
+    const res = await getS3Client().send(new GetObjectCommand({ Bucket: s3.bucket, Key: relativePath }));
+    if (!res.Body) throw new Error("S3 返回空文件");
+    const bytes = await res.Body.transformToByteArray();
+    return Buffer.from(bytes);
+  } catch (e: any) {
+    throw new Error(`S3 读取失败：${e?.message ?? String(e)}`);
+  }
+}
+
+// ---------- 统一上传入口（按驱动分发） ----------
+async function uploadObject(relativePath: string, buffer: Buffer, mimeType: string) {
+  if (isSupabaseStorage()) {
+    await uploadSupabaseObject(relativePath, buffer, mimeType);
+  } else if (isS3Storage()) {
+    await uploadS3Object(relativePath, buffer, mimeType);
+  } else {
+    const absolutePath = absoluteStoragePath(relativePath);
+    await mkdir(path.dirname(absolutePath), { recursive: true });
+    await writeFile(absolutePath, buffer);
+  }
+}
+
+function remotePath(prefix: string, fileName: string) {
+  return `orders/${prefix}/${fileName}`;
+}
+
 export async function saveUpload(file: File, orderId: string, role?: "bride" | "groom"): Promise<StoredFile> {
   if (!allowedMimeTypes.has(file.type)) throw new Error("Only JPEG, PNG, and WEBP images are supported.");
   if (file.size > 15 * 1024 * 1024) throw new Error("Image must be smaller than 15MB.");
   const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
-  const relativePath = isSupabaseStorage()
-    ? `orders/${orderId}/uploads/${role ?? randomUUID()}${ext}`
+  const relativePath = isRemoteStorage()
+    ? remotePath(`${orderId}/uploads`, `${role ?? randomUUID()}${ext}`)
     : `uploads/${orderId}/${randomUUID()}${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-  if (isSupabaseStorage()) {
-    await uploadSupabaseObject(relativePath, buffer, file.type);
-    return { relativePath, absolutePath: null, mimeType: file.type };
-  }
-  const absolutePath = absoluteStoragePath(relativePath);
-  await mkdir(path.dirname(absolutePath), { recursive: true });
-  await writeFile(absolutePath, buffer);
-  return { relativePath, absolutePath, mimeType: file.type };
+  await uploadObject(relativePath, buffer, file.type);
+  return { relativePath, absolutePath: isRemoteStorage() ? null : absoluteStoragePath(relativePath), mimeType: file.type };
 }
 
 export async function saveGeneratedImage(buffer: Buffer, orderId: string, index: number): Promise<StoredFile> {
-  const relativePath = isSupabaseStorage()
-    ? `orders/${orderId}/generated/original/${String(index + 1).padStart(2, "0")}.png`
+  const relativePath = isRemoteStorage()
+    ? remotePath(`${orderId}/generated/original`, `${String(index + 1).padStart(2, "0")}.png`)
     : `generated/${orderId}/${String(index + 1).padStart(2, "0")}.png`;
-  if (isSupabaseStorage()) {
-    await uploadSupabaseObject(relativePath, buffer, "image/png");
-    return { relativePath, absolutePath: null, mimeType: "image/png" };
-  }
-  const absolutePath = absoluteStoragePath(relativePath);
-  await mkdir(path.dirname(absolutePath), { recursive: true });
-  await writeFile(absolutePath, buffer);
-  return { relativePath, absolutePath, mimeType: "image/png" };
+  await uploadObject(relativePath, buffer, "image/png");
+  return { relativePath, absolutePath: isRemoteStorage() ? null : absoluteStoragePath(relativePath), mimeType: "image/png" };
 }
 
 export async function saveGeneratedImageBuffer(buffer: Buffer, orderId: string, index: number, mimeType = "image/png", taskSuffix?: string): Promise<StoredFile> {
   const ext = mimeType === "image/jpeg" ? ".jpg" : mimeType === "image/webp" ? ".webp" : ".png";
   const fileBase = taskSuffix ? `${String(index + 1).padStart(2, "0")}-${taskSuffix}` : String(index + 1).padStart(2, "0");
-  const relativePath = isSupabaseStorage()
-    ? `orders/${orderId}/generated/original/${fileBase}${ext}`
+  const relativePath = isRemoteStorage()
+    ? remotePath(`${orderId}/generated/original`, `${fileBase}${ext}`)
     : `generated/${orderId}/${fileBase}${ext}`;
-  if (isSupabaseStorage()) {
-    await uploadSupabaseObject(relativePath, buffer, mimeType);
-    return { relativePath, absolutePath: null, mimeType };
-  }
-  const absolutePath = absoluteStoragePath(relativePath);
-  await mkdir(path.dirname(absolutePath), { recursive: true });
-  await writeFile(absolutePath, buffer);
-  return { relativePath, absolutePath, mimeType };
+  await uploadObject(relativePath, buffer, mimeType);
+  return { relativePath, absolutePath: isRemoteStorage() ? null : absoluteStoragePath(relativePath), mimeType };
 }
 
 export async function saveGeneratedUpload(file: File, orderId: string, index: number): Promise<StoredFile> {
   if (!allowedMimeTypes.has(file.type)) throw new Error("Only JPEG, PNG, and WEBP images are supported.");
   if (file.size > 20 * 1024 * 1024) throw new Error("Generated image must be smaller than 20MB.");
   const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
-  const relativePath = isSupabaseStorage()
-    ? `orders/${orderId}/generated/original/${String(index + 1).padStart(2, "0")}${ext}`
+  const relativePath = isRemoteStorage()
+    ? remotePath(`${orderId}/generated/original`, `${String(index + 1).padStart(2, "0")}${ext}`)
     : `generated/${orderId}/${String(index + 1).padStart(2, "0")}${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
-  if (isSupabaseStorage()) {
-    await uploadSupabaseObject(relativePath, buffer, file.type);
-    return { relativePath, absolutePath: null, mimeType: file.type };
-  }
-  const absolutePath = absoluteStoragePath(relativePath);
-  await mkdir(path.dirname(absolutePath), { recursive: true });
-  await writeFile(absolutePath, buffer);
-  return { relativePath, absolutePath, mimeType: file.type };
+  await uploadObject(relativePath, buffer, file.type);
+  return { relativePath, absolutePath: isRemoteStorage() ? null : absoluteStoragePath(relativePath), mimeType: file.type };
 }
 
 export async function savePreviewImageBuffer(buffer: Buffer, orderId: string, imageNumber: number, taskSuffix?: string) {
   const fileBase = taskSuffix ? `${String(imageNumber).padStart(2, "0")}-${taskSuffix}` : String(imageNumber).padStart(2, "0");
-  const relativePath = isSupabaseStorage()
-    ? `orders/${orderId}/generated/preview/${fileBase}.jpg`
+  const relativePath = isRemoteStorage()
+    ? remotePath(`${orderId}/generated/preview`, `${fileBase}.jpg`)
     : `previews/${orderId}/${fileBase}.jpg`;
-  if (isSupabaseStorage()) {
-    await uploadSupabaseObject(relativePath, buffer, "image/jpeg");
-    return { relativePath, absolutePath: null, mimeType: "image/jpeg" };
-  }
-  const absolutePath = absoluteStoragePath(relativePath);
-  await mkdir(path.dirname(absolutePath), { recursive: true });
-  await writeFile(absolutePath, buffer);
-  return { relativePath, absolutePath, mimeType: "image/jpeg" };
+  await uploadObject(relativePath, buffer, "image/jpeg");
+  return { relativePath, absolutePath: isRemoteStorage() ? null : absoluteStoragePath(relativePath), mimeType: "image/jpeg" };
 }
 
 export async function readStoredFile(relativePath: string) {
@@ -122,6 +164,9 @@ export async function readStoredFile(relativePath: string) {
     if (error) throw new Error(`Supabase Storage 读取失败：${error.message}`);
     return Buffer.from(await data.arrayBuffer());
   }
+  if (isS3Storage()) {
+    return readS3Object(relativePath);
+  }
   return readFile(absoluteStoragePath(relativePath));
 }
 
@@ -131,7 +176,33 @@ export async function overwriteStoredBuffer(relativePath: string, buffer: Buffer
     await uploadSupabaseObject(relativePath, buffer, "image/jpeg");
     return;
   }
+  if (isS3Storage()) {
+    await uploadS3Object(relativePath, buffer, "image/jpeg");
+    return;
+  }
   const absolutePath = absoluteStoragePath(relativePath);
   await mkdir(path.dirname(absolutePath), { recursive: true });
   await writeFile(absolutePath, buffer);
+}
+
+// ---------- S3 JSON 文档读写（订单 / 兑换码等结构化数据） ----------
+/** 结构化数据在 COS 中的统一前缀，避免和图片对象混在一起 */
+export const COS_DATA_PREFIX = "data";
+
+export async function readS3Json<T>(key: string): Promise<T | null> {
+  try {
+    const buf = await readS3Object(key);
+    return JSON.parse(buf.toString("utf8")) as T;
+  } catch (e: any) {
+    const msg: string = e?.message ?? "";
+    const status = e?.$metadata?.httpStatusCode;
+    if (e?.name === "NoSuchKey" || status === 404 || /nosuchkey|404|not found|the specified key does not exist/i.test(msg)) {
+      return null;
+    }
+    throw e;
+  }
+}
+
+export async function writeS3Json(key: string, data: unknown) {
+  await uploadS3Object(key, Buffer.from(JSON.stringify(data, null, 2), "utf8"), "application/json");
 }

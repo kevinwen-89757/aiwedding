@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { appConfig } from "@/lib/config";
+import { readS3Json, writeS3Json, COS_DATA_PREFIX } from "@/services/storage";
 import {
   listSupabaseCodes,
   getSupabaseCode,
@@ -43,6 +44,19 @@ function writeCodes(store: CodeStore) {
 function isSupabaseStore() {
   return appConfig.storageDriver === "supabase";
 }
+function isCosStore() {
+  return appConfig.storageDriver === "s3";
+}
+function codesCosKey() {
+  return `${COS_DATA_PREFIX}/redeem-codes.json`;
+}
+async function readCodesCos(): Promise<CodeStore> {
+  const store = await readS3Json<CodeStore>(codesCosKey());
+  return store ?? { generatedAt: "", codes: [] };
+}
+async function writeCodesCos(store: CodeStore) {
+  await writeS3Json(codesCosKey(), store);
+}
 
 /** 校验兑换码并返回码信息（不修改状态） */
 export async function validateCode(code: string): Promise<RedeemCode | null> {
@@ -58,6 +72,10 @@ export async function validateCode(code: string): Promise<RedeemCode | null> {
       orderId: found.order_id,
     };
   }
+  if (isCosStore()) {
+    const store = await readCodesCos();
+    return store.codes.find((c) => c.code === code && c.status === "active") ?? null;
+  }
   // 本地 JSON 回退
   const store = readCodes();
   return store.codes.find((c) => c.code === code && c.status === "active") ?? null;
@@ -71,6 +89,17 @@ export async function redeemCode(
 ): Promise<boolean> {
   if (isSupabaseStore()) {
     await redeemSupabaseCode(code, customerName, orderId);
+    return true;
+  }
+  if (isCosStore()) {
+    const store = await readCodesCos();
+    const found = store.codes.find((c) => c.code === code && c.status === "active");
+    if (!found) return false;
+    found.status = "redeemed";
+    found.redeemedAt = new Date().toISOString();
+    found.redeemedBy = customerName;
+    found.orderId = orderId;
+    await writeCodesCos(store);
     return true;
   }
   // 本地 JSON 回退
@@ -97,6 +126,9 @@ export async function listAllCodes(): Promise<RedeemCode[]> {
       orderId: c.order_id,
     }));
   }
+  if (isCosStore()) {
+    return (await readCodesCos()).codes;
+  }
   return readCodes().codes;
 }
 
@@ -105,7 +137,7 @@ export async function getCodeStats() {
   if (isSupabaseStore()) {
     return await getSupabaseCodeStats();
   }
-  const codes = readCodes().codes;
+  const codes = isCosStore() ? (await readCodesCos()).codes : readCodes().codes;
   return {
     total: codes.length,
     active: codes.filter((c) => c.status === "active").length,
