@@ -292,6 +292,13 @@ export async function startApiGeneration(order: LocalOrder) {
   if (!plan.length) throw new Error("没有可执行的生成计划。");
   const runtimeConfig = getGenerationRuntimeConfig(order);
 
+  // 时间预算：Serverless 函数有 60 秒硬上限。单次调用最多提交到预算点就主动
+  // return，已提交的任务已落盘（见下方循环内的 updateLocalOrder），下一次轮询
+  // 会自动续交剩余任务。这样无论后台手动点击还是自动轮询，单次请求都不会超过
+  // Vercel 的 60 秒上限 → 不会再出现 504 网关超时。
+  const generationTimeBudgetMs = Number(process.env.GENERATION_TIME_BUDGET_MS ?? 38000);
+  const generationDeadline = Date.now() + generationTimeBudgetMs;
+
   // 断点续传：Serverless 函数有 60 秒上限，23 张图一次性提交会超时。
   // 若已有任务，说明是上一轮被中断后的续跑——不清空已生成资产、
   // 不重置任务列表，只补交尚未提交的任务。
@@ -365,6 +372,14 @@ export async function startApiGeneration(order: LocalOrder) {
   const jobs: GenerationJob[] = [...existingJobs];
   for (let index = 0; index < remainingPlan.length; index += 1) {
     const item = remainingPlan[index];
+    // 时间预算守卫：超过预算则停止提交，剩余任务由下一次轮询自动续交
+    // （循环结束后的汇总逻辑会正确写入「还有 X 个任务待提交，下次轮询自动续交」）。
+    if (Date.now() >= generationDeadline) {
+      console.log("[start-generation] time budget reached, stopping submission; remaining tasks continue on next poll", {
+        orderId: order.id, submitted: jobs.length, remaining: remainingPlan.length - index
+      });
+      break;
+    }
     // Guard: 跳过空 prompt，防止 APIMart 返回 400
     if (!item.rawPrompt || item.rawPrompt.trim().length === 0) {
       const message = `图 ${item.imageNumber} prompt 为空，已跳过。请检查「${item.themeName}」风格的「${item.promptName}」prompt 是否已填写。`;
