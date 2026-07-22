@@ -23,11 +23,24 @@ function stripRuntimeInstructionFromPrompt(prompt: string | null) {
   if (!prompt) return prompt;
   return runtimeInstructionLines.reduce((value, line) => value.replaceAll(`\n${line}`, "").replaceAll(line, ""), prompt).trim();
 }
+function hasSupabaseDb() {
+  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+// 订单数据库与图片存储解耦：只要配置了 Supabase，订单就走 Supabase Postgres（快、稳定），
+// 不受 storageDriver（图片走 COS / Supabase Storage）影响。
+// 原来 storageDriver=s3 时订单 JSON 也存到 COS，每次请求都要从腾讯云读写整个 orders.json，
+// 从 Vercel 跨区域访问极慢，叠加图片上传极易超过 60s → 504。解耦后订单库走 Supabase，
+// 彻底消除这部分慢速往返。图片仍按 storageDriver 走 COS。
+function dbMode(): "supabase" | "cos" | "local" {
+  if (hasSupabaseDb()) return "supabase";
+  if (appConfig.storageDriver === "s3") return "cos";
+  return "local";
+}
 function isSupabaseStore() {
-  return appConfig.storageDriver === "supabase";
+  return dbMode() === "supabase";
 }
 function isCosStore() {
-  return appConfig.storageDriver === "s3";
+  return dbMode() === "cos";
 }
 function ordersCosKey() {
   return `${COS_DATA_PREFIX}/orders.json`;

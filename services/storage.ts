@@ -105,7 +105,7 @@ function remotePath(prefix: string, fileName: string) {
   return `orders/${prefix}/${fileName}`;
 }
 
-export async function saveUpload(file: File, orderId: string, role?: "bride" | "groom"): Promise<StoredFile> {
+export async function saveUpload(file: File, orderId: string, role?: "bride" | "groom"): Promise<StoredFile & { buffer: Buffer }> {
   if (!allowedMimeTypes.has(file.type)) throw new Error("Only JPEG, PNG, and WEBP images are supported.");
   if (file.size > 15 * 1024 * 1024) throw new Error("Image must be smaller than 15MB.");
   const ext = file.type === "image/png" ? ".png" : file.type === "image/webp" ? ".webp" : ".jpg";
@@ -114,7 +114,9 @@ export async function saveUpload(file: File, orderId: string, role?: "bride" | "
     : `uploads/${orderId}/${randomUUID()}${ext}`;
   const buffer = Buffer.from(await file.arrayBuffer());
   await uploadObject(relativePath, buffer, file.type);
-  return { relativePath, absolutePath: isRemoteStorage() ? null : absoluteStoragePath(relativePath), mimeType: file.type };
+  // 返回 buffer 供调用方（订单创建）在内存中直接计算尺寸，
+  // 避免「上传后又从存储下载回来读元数据」的额外网络往返（Vercel 60s 超时的重要诱因）。
+  return { relativePath, absolutePath: isRemoteStorage() ? null : absoluteStoragePath(relativePath), mimeType: file.type, buffer };
 }
 
 export async function saveGeneratedImage(buffer: Buffer, orderId: string, index: number): Promise<StoredFile> {

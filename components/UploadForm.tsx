@@ -80,6 +80,8 @@ export function UploadForm() {
   const [fileInfos, setFileInfos] = useState<{ bride?: FileInfo; groom?: FileInfo }>({});
   const [compressing, setCompressing] = useState(false);
   const [compressStatus, setCompressStatus] = useState("");
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadPhase, setUploadPhase] = useState<"idle" | "uploading" | "processing">("idle");
   const previewsRef = useRef(previews);
   useEffect(() => {
     return () => {
@@ -147,11 +149,45 @@ export function UploadForm() {
       if (email) uploadForm.append("customerEmail", String(email));
 
       setSubmitting(true);
-      const response = await fetch("/api/orders", { method: "POST", body: uploadForm });
-      const payload = await response.json().catch(() => ({ error: "创建订单失败", detail: `服务器返回了不可解析内容，状态码 ${response.status}` }));
-      if (!response.ok) {
+      setUploadPhase("uploading");
+      setUploadProgress(0);
+
+      // 用 XMLHttpRequest 替代 fetch，以便监听上传进度，给用户实时进度条。
+      // XHR Promise 在 HTTP 错误（含 504）时 resolve 为 { error }，
+      // 在网络/超时错误时 reject（由下方外层 catch 兜底）。
+      const payload = await new Promise<{ orderId?: string; error?: string; detail?: string }>((resolve, reject) => {
+        const xhr = new XMLHttpRequest();
+        xhr.open("POST", "/api/orders");
+        xhr.upload.onprogress = (event) => {
+          if (event.lengthComputable) {
+            setUploadProgress(Math.round((event.loaded / event.total) * 100));
+          }
+        };
+        xhr.upload.onload = () => {
+          // 照片字节已发完，进入「服务器处理」阶段（创建订单 + 落库）
+          setUploadPhase("processing");
+          setUploadProgress(100);
+        };
+        xhr.onload = () => {
+          let data: { orderId?: string; error?: string; detail?: string } = {};
+          try { data = JSON.parse(xhr.responseText); } catch { /* 响应不可解析：保持空对象，下方按状态码兜底 */ }
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve(data);
+          } else {
+            // 504 等网关错误会走到这里：responseText 通常为空，用状态码兜底提示
+            resolve({ error: data.error ?? `上传失败，状态码 ${xhr.status}`, detail: data.detail });
+          }
+        };
+        xhr.onerror = () => reject(new Error("网络错误，上传失败，请检查网络后重试。"));
+        xhr.ontimeout = () => reject(new Error("上传超时，请稍后重试。"));
+        xhr.send(uploadForm);
+      });
+
+      if (payload.error) {
         setSubmitting(false);
-        const errorText = [payload.error ?? `上传失败，状态码 ${response.status}`, payload.detail].filter(Boolean).join("\n");
+        setUploadPhase("idle");
+        setUploadProgress(0);
+        const errorText = [payload.error, payload.detail].filter(Boolean).join("\n");
         setError(errorText);
         return;
       }
@@ -159,6 +195,9 @@ export function UploadForm() {
     } catch (err) {
       setCompressing(false);
       setCompressStatus("");
+      setSubmitting(false);
+      setUploadPhase("idle");
+      setUploadProgress(0);
       setError(err instanceof Error ? err.message : "上传失败，请查看终端日志");
     }
   }
@@ -265,9 +304,20 @@ export function UploadForm() {
     {error ? <div className="error-box" style={{ background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)", borderRadius: 10, padding: "10px 14px", fontSize: 14, color: "#dc2626", marginTop: 8, whiteSpace: "pre-line" }}>{error}</div> : null}
     <div className="actions" style={{ marginTop: 16 }}>
       <button type="submit" className="button" disabled={!canSubmit || compressing || submitting}>
-        {compressing ? "正在压缩…" : submitting ? "上传中…" : "提交订单"}
+        {compressing ? "正在压缩…" : submitting ? (uploadPhase === "uploading" ? `上传中 ${uploadProgress}%` : "创建订单中…") : "提交订单"}
       </button>
     </div>
+    {uploadPhase !== "idle" ? (
+      <div className="upload-progress" style={{ marginTop: 12 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: "#6b7280", marginBottom: 6 }}>
+          <span>{uploadPhase === "uploading" ? "正在上传照片…" : "照片已上传，正在创建订单…"}</span>
+          <span>{uploadPhase === "uploading" ? `${uploadProgress}%` : "请稍候"}</span>
+        </div>
+        <div style={{ height: 8, background: "#eee", borderRadius: 999, overflow: "hidden" }}>
+          <div style={{ height: "100%", width: `${uploadPhase === "uploading" ? uploadProgress : 100}%`, background: "linear-gradient(90deg,#a0845c,#c9a876)", transition: "width 0.2s ease", borderRadius: 999 }} />
+        </div>
+      </div>
+    ) : null}
     <p className="small" style={{ marginTop: 8, color: "#9ca3af", fontSize: 12 }}>
       支持 JPG、PNG、WebP 格式，单张最大支持 {formatFileSize(MAX_UPLOAD_BYTES)}。系统会自动压缩过大的图片。
     </p>
