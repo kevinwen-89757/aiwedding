@@ -3,7 +3,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { appConfig } from "@/lib/config";
 import { getSupabaseAdmin } from "@/lib/supabaseAdmin";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, HeadObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const allowedMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
@@ -55,7 +55,7 @@ function getS3Client(): S3Client {
       region: s3.region,
       endpoint: s3.endpoint,
       credentials: { accessKeyId: s3.accessKeyId, secretAccessKey: s3.secretAccessKey },
-      forcePathStyle: false,
+      forcePathStyle: false
     });
   }
   return _s3Client;
@@ -125,20 +125,27 @@ export async function saveUpload(file: File, orderId: string, role?: "bride" | "
   return { relativePath, absolutePath: isRemoteStorage() ? null : absoluteStoragePath(relativePath), mimeType: file.type, buffer };
 }
 
+/** 生成原图的相对路径（与 saveGeneratedImageBuffer 共用，保证幂等检查时路径完全一致） */
+export function generatedOriginalRelativePath(orderId: string, index: number, mimeType = "image/png", taskSuffix?: string): string {
+  const ext = mimeType === "image/jpeg" ? ".jpg" : mimeType === "image/webp" ? ".webp" : ".png";
+  const fileBase = taskSuffix ? `${String(index + 1).padStart(2, "0")}-${taskSuffix}` : String(index + 1).padStart(2, "0");
+  return isRemoteStorage() ? remotePath(`${orderId}/generated/original`, `${fileBase}${ext}`) : `generated/${orderId}/${fileBase}${ext}`;
+}
+
+/** 水印预览图的相对路径（与 savePreviewImageBuffer 共用） */
+export function previewRelativePath(orderId: string, imageNumber: number, taskSuffix?: string): string {
+  const fileBase = taskSuffix ? `${String(imageNumber).padStart(2, "0")}-${taskSuffix}` : String(imageNumber).padStart(2, "0");
+  return isRemoteStorage() ? remotePath(`${orderId}/generated/preview`, `${fileBase}.jpg`) : `previews/${orderId}/${fileBase}.jpg`;
+}
+
 export async function saveGeneratedImage(buffer: Buffer, orderId: string, index: number): Promise<StoredFile> {
-  const relativePath = isRemoteStorage()
-    ? remotePath(`${orderId}/generated/original`, `${String(index + 1).padStart(2, "0")}.png`)
-    : `generated/${orderId}/${String(index + 1).padStart(2, "0")}.png`;
+  const relativePath = generatedOriginalRelativePath(orderId, index, "image/png");
   await uploadObject(relativePath, buffer, "image/png");
   return { relativePath, absolutePath: isRemoteStorage() ? null : absoluteStoragePath(relativePath), mimeType: "image/png" };
 }
 
 export async function saveGeneratedImageBuffer(buffer: Buffer, orderId: string, index: number, mimeType = "image/png", taskSuffix?: string): Promise<StoredFile> {
-  const ext = mimeType === "image/jpeg" ? ".jpg" : mimeType === "image/webp" ? ".webp" : ".png";
-  const fileBase = taskSuffix ? `${String(index + 1).padStart(2, "0")}-${taskSuffix}` : String(index + 1).padStart(2, "0");
-  const relativePath = isRemoteStorage()
-    ? remotePath(`${orderId}/generated/original`, `${fileBase}${ext}`)
-    : `generated/${orderId}/${fileBase}${ext}`;
+  const relativePath = generatedOriginalRelativePath(orderId, index, mimeType, taskSuffix);
   await uploadObject(relativePath, buffer, mimeType);
   return { relativePath, absolutePath: isRemoteStorage() ? null : absoluteStoragePath(relativePath), mimeType };
 }
@@ -156,12 +163,24 @@ export async function saveGeneratedUpload(file: File, orderId: string, index: nu
 }
 
 export async function savePreviewImageBuffer(buffer: Buffer, orderId: string, imageNumber: number, taskSuffix?: string) {
-  const fileBase = taskSuffix ? `${String(imageNumber).padStart(2, "0")}-${taskSuffix}` : String(imageNumber).padStart(2, "0");
-  const relativePath = isRemoteStorage()
-    ? remotePath(`${orderId}/generated/preview`, `${fileBase}.jpg`)
-    : `previews/${orderId}/${fileBase}.jpg`;
+  const relativePath = previewRelativePath(orderId, imageNumber, taskSuffix);
   await uploadObject(relativePath, buffer, "image/jpeg");
   return { relativePath, absolutePath: isRemoteStorage() ? null : absoluteStoragePath(relativePath), mimeType: "image/jpeg" };
+}
+
+/** 检查 COS 中是否已存在该对象（用于生成图幂等，避免重复下载 4K 大图导致卡死） */
+export async function existsS3Object(relativePath: string): Promise<boolean> {
+  if (!isS3Storage()) return false;
+  const bucket = appConfig.s3?.bucket;
+  if (!bucket) return false;
+  try {
+    await getS3Client().send(new HeadObjectCommand({ Bucket: bucket, Key: relativePath }));
+    return true;
+  } catch (e: any) {
+    const status = e?.$metadata?.httpStatusCode;
+    if (status === 404 || e?.name === "NotFound" || /nosuchkey|404|not found|the specified key does not exist/i.test(e?.message ?? "")) return false;
+    throw e;
+  }
 }
 
 export async function readStoredFile(relativePath: string) {

@@ -1,11 +1,12 @@
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import { appConfig } from "@/lib/config";
 import type { GenerationJob, OrderAsset } from "@/lib/types";
 import { addLocalAsset, clearLocalGeneratedAssets, getLocalOrder, updateLocalOrder, updateLocalOrderStatus } from "@/services/localStore";
 import type { LocalOrder } from "@/services/localStore";
 import { generateWeddingImage } from "@/services/gemini";
 import { buildPreviewGenerationPlan, getSelectedThemes } from "@/services/prompts";
-import { readStoredFile, saveGeneratedImage, saveGeneratedImageBuffer, saveGeneratedUpload, savePreviewImageBuffer, overwriteStoredBuffer } from "@/services/storage";
+import { readStoredFile, saveGeneratedImage, saveGeneratedImageBuffer, saveGeneratedUpload, savePreviewImageBuffer, overwriteStoredBuffer, isS3Storage, generatedOriginalRelativePath, previewRelativePath, existsS3Object } from "@/services/storage";
 import { createWatermarkedPreviewBuffer, imageMetadataFromBuffer } from "@/services/watermark";
 import { apimartCreateGenerationTask, apimartDownloadImage, apimartGetTaskStatus, apimartUploadImage } from "@/services/generation/providers/apimart";
 
@@ -482,42 +483,16 @@ export async function startApiGeneration(order: LocalOrder) {
   return getLocalOrder(order.id);
 }
 
-async function saveCompletedApiJob(orderId: string, job: GenerationJob, imageUrl: string, status: string) {
-  // 每次保存前重新读取订单，防止 stale snapshot 导致重复
-  const freshOrder = await getLocalOrder(orderId);
-  if (!freshOrder) return;
-  if (hasAssetForTask(freshOrder, job.task_id)) return;
-  // 同 image_number 已存在则跳过（防止多轮恢复导致同一编号重复保存）
-  if (freshOrder.order_assets.some((a) => a.kind === "generated" && a.sort_order === job.image_number)) {
-    await appendApiProgress(orderId, [`图 ${job.image_number} 已有同编号资产，跳过重复保存。`]);
-    return;
-  }
-  // 用 task_id 前 8 位做文件名，避免同 image_number 的不同任务互相覆盖
-  const taskSuffix = job.task_id.replace(/^create-failed-/, "").slice(0, 8);
-  await appendApiProgress(orderId, [`APIMart 返回图片 URL：${imageUrl}`, `图 ${job.image_number} 正在下载生成图。`]);
-  const downloaded = await apimartDownloadImage(imageUrl);
+type SavedGeneratedAsset = Omit<OrderAsset, "id" | "order_id" | "created_at">;
 
-  // 并行：上传原图 + 生成并上传预览图（节省 ~2-3 秒/张）
-  const [generated, preview] = await Promise.all([
-    saveGeneratedImageBuffer(downloaded.buffer, orderId, job.image_number - 1, downloaded.mimeType, taskSuffix),
-    (async () => {
-      const previewBuf = await createWatermarkedPreviewBuffer(downloaded.buffer);
-      return savePreviewImageBuffer(previewBuf, orderId, job.image_number, taskSuffix);
-    })()
-  ]);
-
-  await appendApiProgress(orderId, [
-    `图 ${job.image_number} 原图已保存到 Supabase Storage：${generated.relativePath}`,
-    `图 ${job.image_number} 水印预览图已保存到 Supabase Storage：${preview.relativePath}`
-  ]);
-  const metadata = await imageMetadataFromBuffer(downloaded.buffer);
-  await addLocalAsset(orderId, {
+function buildGeneratedAsset(job: GenerationJob, originalPath: string, previewPath: string, mimeType: string, width: number | null, height: number | null): SavedGeneratedAsset {
+  return {
     kind: "generated",
-    original_path: generated.relativePath,
-    preview_path: preview.relativePath,
-    mime_type: generated.mimeType,
-    width: metadata.width,
-    height: metadata.height,
+    original_path: originalPath,
+    preview_path: previewPath,
+    mime_type: mimeType,
+    width,
+    height,
     generation_prompt: job.raw_prompt,
     theme_id: job.theme_id,
     theme_name: job.theme_name,
@@ -529,20 +504,78 @@ async function saveCompletedApiJob(orderId: string, job: GenerationJob, imageUrl
     generation_provider: "apimart",
     generation_model: appConfig.apimartModel,
     generation_task_id: job.task_id,
-    generation_status: status,
+    generation_status: "completed",
     generation_error: null,
     prompt_index: job.prompt_index,
     sort_order: job.image_number,
     is_selected: false,
     is_unlocked: false
-  });
+  };
+}
+
+/**
+ * 下载 APIMart 返回的图片并上传到 COS（原图 + 水印预览），返回资产描述符。
+ * 注意：本函数【不】写订单元数据——写入由调用方（pollApiGeneration）在循环结束后
+ * 统一批量写回，避免「每张图一次全量 orders.json 读写」在跨境 COS 下叠加超时。
+ * 具备幂等：若 COS 中原图与预览都已存在（之前已成功上传，仅元数据写入失败），直接复用，
+ * 跳过重复下载 4K 大图。
+ */
+async function saveCompletedApiJob(orderId: string, job: GenerationJob, imageUrl: string, status: string): Promise<{ asset: SavedGeneratedAsset | null; notes: string[] } | null> {
+  const freshOrder = await getLocalOrder(orderId);
+  if (!freshOrder) return null;
+  // 已在订单库记录过该任务结果 → 跳过（防止重复保存）
+  if (hasAssetForTask(freshOrder, job.task_id)) return null;
+  // 同编号资产已存在 → 跳过
+  if (freshOrder.order_assets.some((a) => a.kind === "generated" && a.sort_order === job.image_number)) {
+    return { asset: null, notes: [`图 ${job.image_number} 已有同编号资产，跳过重复保存。`] };
+  }
+
+  const taskSuffix = job.task_id.replace(/^create-failed-/, "").slice(0, 8);
+
+  // 幂等检查：COS 中原图 + 预览是否都已存在
+  const previewPath = previewRelativePath(orderId, job.image_number, taskSuffix);
+  if (isS3Storage()) {
+    const originalCandidates = [
+      generatedOriginalRelativePath(orderId, job.image_number - 1, "image/jpeg", taskSuffix),
+      generatedOriginalRelativePath(orderId, job.image_number - 1, "image/png", taskSuffix)
+    ];
+    const origChecks = await Promise.all(originalCandidates.map((p) => existsS3Object(p)));
+    const origExists = origChecks.some(Boolean);
+    const prevExists = await existsS3Object(previewPath);
+    if (origExists && prevExists) {
+      const originalPath = originalCandidates[origChecks.indexOf(true)];
+      const mimeType = originalPath.endsWith(".png") ? "image/png" : originalPath.endsWith(".webp") ? "image/webp" : "image/jpeg";
+      return {
+        asset: buildGeneratedAsset(job, originalPath, previewPath, mimeType, null, null),
+        notes: [`图 ${job.image_number} 云端已存在生成图，跳过重复下载（幂等复用）。`]
+      };
+    }
+  }
+
+  const downloaded = await apimartDownloadImage(imageUrl);
+  const mimeType = downloaded.mimeType || "image/jpeg";
+  // 并行：上传原图 + 生成并上传预览图（节省 ~2-3 秒/张）
+  const [generated, preview] = await Promise.all([
+    saveGeneratedImageBuffer(downloaded.buffer, orderId, job.image_number - 1, mimeType, taskSuffix),
+    (async () => {
+      const previewBuf = await createWatermarkedPreviewBuffer(downloaded.buffer);
+      return savePreviewImageBuffer(previewBuf, orderId, job.image_number, taskSuffix);
+    })()
+  ]);
+
+  const metadata = await imageMetadataFromBuffer(downloaded.buffer);
+  return {
+    asset: buildGeneratedAsset(job, generated.relativePath, preview.relativePath, generated.mimeType, metadata.width, metadata.height),
+    notes: [
+      `图 ${job.image_number} 原图已保存到云端存储(COS)：${generated.relativePath}`,
+      `图 ${job.image_number} 水印预览图已保存到云端存储(COS)：${preview.relativePath}`
+    ]
+  };
 }
 
 export async function pollApiGeneration(orderId: string) {
   let order = await getLocalOrder(orderId);
   if (!order) throw new Error("Order not found");
-  const plannedTaskCount = getEffectiveOrderGenerationPlan(order).length;
-  const generatedAssetCount = order.order_assets.filter((asset) => asset.kind === "generated").length;
   let jobs = order.generation_jobs ?? [];
   // 状态页本身已显示计划/已完成/进行中数量，这里不再往管理备注里刷屏。
   // 只有真正发生任务完成、失败等事件时才追加记录。
@@ -575,115 +608,92 @@ export async function pollApiGeneration(orderId: string) {
     })
   );
 
+  // 时间预算：单次 poll 不超过 ~28s，超出则剩余 job 留到下次轮询
+  // （避免 Vercel 60s 网关上限 → 504 / 订单卡死）。保存是重操作（下载 4K + 上传 COS），
+  // 必须在预算内收敛。
+  const pollTimeBudgetMs = Number(process.env.POLL_TIME_BUDGET_MS ?? 28000);
+  const pollDeadline = Date.now() + pollTimeBudgetMs;
+  const MAX_SAVE_PER_POLL = 3;
+
+  // 本轮累积的变更：统一在循环结束后「一次性」写回 orders.json，
+  // 避免「每张图一次全量读写」在跨境 COS 下叠加超时（订单卡死/后台变慢的根因）。
+  const pendingAssets: SavedGeneratedAsset[] = [];
+  const jobUpdates: Array<{ task_id: string; status: GenerationJob["status"]; error: string | null; pollCount: number; resultImageUrl?: string | null }> = [];
+  const notes: string[] = [];
   let savedCount = 0;
-  const MAX_SAVE_PER_POLL = 5; // 每次 poll 最多保存 5 张（并行下载+上传，~6-9s < 10s Vercel 限制）
 
   for (const { job, result, ok, error, pollCount } of pollResults) {
     if (!ok) {
-      await appendApiProgress(orderId, [`图 ${job.image_number} 第 ${pollCount} 次查询失败：${error}`]);
-      await updateLocalOrder(orderId, (current) => ({
-        ...current,
-        status: "generating",
-        generation_jobs: (current.generation_jobs ?? []).map((item) => item.task_id === job.task_id ? {
-          ...item,
-          status: "failed",
-          poll_count: pollCount,
-          error,
-          updated_at: new Date().toISOString()
-        } : item)
-      }));
+      jobUpdates.push({ task_id: job.task_id, status: "failed", error, pollCount });
+      notes.push(`图 ${job.image_number} 第 ${pollCount} 次查询失败：${error}`);
       continue;
     }
 
-    await appendApiProgress(orderId, [`图 ${job.image_number} 第 ${pollCount} 次查询：状态 ${result!.status}`]);
-
     if (["completed", "complete", "success", "succeeded", "done"].includes(result!.status)) {
       if (!result!.imageUrl) {
-        await updateLocalOrder(orderId, (current) => ({
-          ...current,
-          status: "generating",
-          generation_jobs: (current.generation_jobs ?? []).map((item) => item.task_id === job.task_id ? {
-            ...item,
-            status: "failed",
-            poll_count: pollCount,
-            error: `APIMart 任务 ${job.task_id} 已完成，但没有返回结果图片 URL。`,
-            updated_at: new Date().toISOString()
-          } : item),
-          admin_note: appendApiProgressNoteText(current.admin_note, [`图 ${job.image_number} 生成失败：APIMart 返回 completed 但没有图片 URL`])
-        }));
+        jobUpdates.push({ task_id: job.task_id, status: "failed", error: `APIMart 任务 ${job.task_id} 已完成，但没有返回结果图片 URL。`, pollCount });
+        notes.push(`图 ${job.image_number} 生成失败：APIMart 返回 completed 但没有图片 URL`);
         continue;
       }
-
-      // 限制每次 poll 最多保存 1 个 completed job，避免 Vercel 10s 超时
-      if (savedCount >= MAX_SAVE_PER_POLL) {
-        await updateLocalOrder(orderId, (current) => ({
-          ...current,
-          status: "generating",
-          generation_jobs: (current.generation_jobs ?? []).map((item) => item.task_id === job.task_id ? {
-            ...item,
-            status: "polling",
-            poll_count: pollCount,
-            updated_at: new Date().toISOString()
-          } : item)
-        }));
+      // 时间预算 / 单次保存上限：超出则本轮先标 polling，下次轮询再续交
+      if (savedCount >= MAX_SAVE_PER_POLL || Date.now() >= pollDeadline) {
+        jobUpdates.push({ task_id: job.task_id, status: "polling", error: null, pollCount });
         continue;
       }
-
       try {
-        await saveCompletedApiJob(orderId, job, result!.imageUrl, result!.status);
-        savedCount++;
-        await updateLocalOrder(orderId, (current) => ({
-          ...current,
-          status: "generating",
-          generation_jobs: (current.generation_jobs ?? []).map((item) => item.task_id === job.task_id ? {
-            ...item,
-            status: "completed",
-            poll_count: pollCount,
-            result_image_url: result!.imageUrl,
-            error: null,
-            updated_at: new Date().toISOString()
-          } : item)
-        }));
+        const saved = await saveCompletedApiJob(orderId, job, result!.imageUrl, result!.status);
+        if (saved && saved.asset) {
+          pendingAssets.push(saved.asset);
+          notes.push(...saved.notes);
+          savedCount++;
+          jobUpdates.push({ task_id: job.task_id, status: "completed", error: null, pollCount, resultImageUrl: result!.imageUrl });
+        } else if (saved && !saved.asset) {
+          // 幂等跳过（已有同编号资产）
+          notes.push(...saved.notes);
+          jobUpdates.push({ task_id: job.task_id, status: "completed", error: null, pollCount, resultImageUrl: result!.imageUrl });
+        }
       } catch (err) {
         const message = errorSummary(err);
-        await updateLocalOrder(orderId, (current) => ({
-          ...current,
-          status: "generating",
-          generation_jobs: (current.generation_jobs ?? []).map((item) => item.task_id === job.task_id ? {
-            ...item,
-            status: "failed",
-            poll_count: pollCount,
-            error: message,
-            updated_at: new Date().toISOString()
-          } : item),
-          admin_note: appendApiProgressNoteText(current.admin_note, [`图 ${job.image_number} 保存失败：${message}`])
-        }));
+        jobUpdates.push({ task_id: job.task_id, status: "failed", error: message, pollCount });
+        notes.push(`图 ${job.image_number} 保存失败：${message}`);
       }
     } else if (["failed", "failure", "cancelled", "canceled", "error"].includes(result!.status)) {
-      await updateLocalOrder(orderId, (current) => ({
-        ...current,
-        status: "generating",
-        generation_jobs: (current.generation_jobs ?? []).map((item) => item.task_id === job.task_id ? {
-          ...item,
-          status: "failed",
-          poll_count: pollCount,
-          error: `APIMart 返回失败状态：${result!.status}`,
-          updated_at: new Date().toISOString()
-        } : item),
-        admin_note: appendApiProgressNoteText(current.admin_note, [`图 ${job.image_number} 生成失败：APIMart 返回状态 ${result!.status}`])
-      }));
+      jobUpdates.push({ task_id: job.task_id, status: "failed", error: `APIMart 返回失败状态：${result!.status}`, pollCount });
+      notes.push(`图 ${job.image_number} 生成失败：APIMart 返回状态 ${result!.status}`);
     } else {
-      await updateLocalOrder(orderId, (current) => ({
-        ...current,
-        status: "generating",
-        generation_jobs: (current.generation_jobs ?? []).map((item) => item.task_id === job.task_id ? {
-          ...item,
-          status: "polling",
-          poll_count: pollCount,
-          updated_at: new Date().toISOString()
-        } : item)
-      }));
+      jobUpdates.push({ task_id: job.task_id, status: "polling", error: null, pollCount });
     }
+  }
+
+  // 单次批量写回：新增资产 + 任务状态变更 + 备注，合并为一次 orders.json 读写
+  if (pendingAssets.length || jobUpdates.length || notes.length) {
+    await updateLocalOrder(orderId, (current) => {
+      let next: LocalOrder = { ...current };
+      if (pendingAssets.length) {
+        next = {
+          ...next,
+          order_assets: [
+            ...next.order_assets,
+            ...pendingAssets.map((a) => ({ ...a, id: randomUUID(), order_id: orderId, created_at: new Date().toISOString() }))
+          ]
+        };
+      }
+      if (jobUpdates.length) {
+        next = {
+          ...next,
+          generation_jobs: (next.generation_jobs ?? []).map((item) => {
+            const upd = jobUpdates.find((u) => u.task_id === item.task_id);
+            return upd
+              ? { ...item, status: upd.status, poll_count: upd.pollCount, error: upd.error, result_image_url: upd.resultImageUrl ?? item.result_image_url, updated_at: new Date().toISOString() }
+              : item;
+          })
+        };
+      }
+      if (notes.length) {
+        next = { ...next, admin_note: appendApiProgressNoteText(next.admin_note, notes) };
+      }
+      return next;
+    });
   }
 
   const latest = await getLocalOrder(orderId);
