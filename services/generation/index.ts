@@ -607,22 +607,22 @@ export async function pollApiGeneration(orderId: string) {
     })
   );
 
-  // 时间预算：从函数入口起算，总预算 ~40s（Vercel 60s 网关上限，留 20s 给批量写回 + 状态收尾）。
-  // 保存是重操作（下载 4K + 水印 + 上传 COS），单张最多给 SAVE_TIMEOUT_MS，
-  // 超时就放弃本张（COS 上已传部分下次幂等复用），绝不允许冲破总预算。
-  const pollTimeBudgetMs = Number(process.env.POLL_TIME_BUDGET_MS ?? 40000);
+  // 时间预算：从函数入口起算，总预算 ~32s（Vercel 60s 网关上限，
+  // 留 ~20s 给批量写回 + 各处跨境读写抖动，实测总耗时需压在 50s 内）。
+  // 保存是重操作（下载 4K + 水印 + 上传 COS），一轮最多 3 张【并行】保存，
+  // 单张限时 SAVE_TIMEOUT_MS；超时放弃本张（COS 已传部分下次幂等复用）。
+  const pollTimeBudgetMs = Number(process.env.POLL_TIME_BUDGET_MS ?? 32000);
   const pollDeadline = pollStartedAt + pollTimeBudgetMs;
-  const SAVE_TIMEOUT_MS = Number(process.env.SAVE_TIMEOUT_MS ?? 20000);
-  const MIN_BUDGET_TO_START_SAVE_MS = 8000; // 剩余预算不足 8s 就不再开新保存
+  const SAVE_TIMEOUT_MS = Number(process.env.SAVE_TIMEOUT_MS ?? 18000);
   const MAX_SAVE_PER_POLL = 3;
   const MAX_QUERY_ERROR_POLLS = Number(process.env.MAX_TASK_POLL_COUNT ?? 60);
 
-  // 本轮累积的变更：统一在循环结束后「一次性」写回 orders.json，
+  // 本轮累积的变更：统一在处理结束后「一次性」写回 orders.json，
   // 避免「每张图一次全量读写」在跨境 COS 下叠加超时（订单卡死/后台变慢的根因）。
   const pendingAssets: SavedGeneratedAsset[] = [];
   const jobUpdates: Array<{ task_id: string; status: GenerationJob["status"]; error: string | null; pollCount: number; resultImageUrl?: string | null }> = [];
   const notes: string[] = [];
-  let savedCount = 0;
+  const saveCandidates: Array<{ job: GenerationJob; imageUrl: string; status: string; pollCount: number }> = [];
 
   for (const { job, result, ok, error, pollCount } of pollResults) {
     if (!ok) {
@@ -643,41 +643,57 @@ export async function pollApiGeneration(orderId: string) {
         notes.push(`图 ${job.image_number} 生成失败：APIMart 返回 completed 但没有图片 URL`);
         continue;
       }
-      // 时间预算 / 单次保存上限：超出则本轮先标 polling，下次轮询再续交。
-      // 剩余预算不足以完成一次保存时也不开始（避免保存进行到一半函数被杀）。
-      const remainingBudget = pollDeadline - Date.now();
-      if (savedCount >= MAX_SAVE_PER_POLL || remainingBudget < MIN_BUDGET_TO_START_SAVE_MS) {
+      if (saveCandidates.length < MAX_SAVE_PER_POLL) {
+        saveCandidates.push({ job, imageUrl: result!.imageUrl, status: result!.status, pollCount });
+      } else {
+        // 超出单轮保存上限：留到下次轮询（APIMart 结果可反复查询）
         jobUpdates.push({ task_id: job.task_id, status: "polling", error: null, pollCount });
-        continue;
-      }
-      try {
-        const saveTimeout = Math.min(SAVE_TIMEOUT_MS, remainingBudget);
-        const saved = await withTimeout(
-          saveCompletedApiJob(orderSnapshot, job, result!.imageUrl, result!.status, pendingAssets),
-          saveTimeout,
-          `图 ${job.image_number} 保存`
-        );
-        if (saved && saved.asset) {
-          pendingAssets.push(saved.asset);
-          notes.push(...saved.notes);
-          savedCount++;
-          jobUpdates.push({ task_id: job.task_id, status: "completed", error: null, pollCount, resultImageUrl: result!.imageUrl });
-        } else if (saved && !saved.asset) {
-          // 幂等跳过（已有同编号资产）
-          notes.push(...saved.notes);
-          jobUpdates.push({ task_id: job.task_id, status: "completed", error: null, pollCount, resultImageUrl: result!.imageUrl });
-        }
-      } catch (err) {
-        // 保存超时/失败 ≠ 生成失败：图片在 APIMart 已生成好，下次轮询幂等续传即可。
-        const message = errorSummary(err);
-        jobUpdates.push({ task_id: job.task_id, status: "polling", error: message, pollCount });
-        notes.push(`图 ${job.image_number} 本轮保存未完成（${message}），下次轮询自动续传。`);
       }
     } else if (["failed", "failure", "cancelled", "canceled", "error"].includes(result!.status)) {
       jobUpdates.push({ task_id: job.task_id, status: "failed", error: `APIMart 返回失败状态：${result!.status}`, pollCount });
       notes.push(`图 ${job.image_number} 生成失败：APIMart 返回状态 ${result!.status}`);
     } else {
       jobUpdates.push({ task_id: job.task_id, status: "polling", error: null, pollCount });
+    }
+  }
+
+  // 保存阶段：最多 3 张【并行】下载+上传（串行会吃光预算，每轮只能存 1 张）。
+  // 每个候选 job 的 image_number 不同，写入的 COS 路径互不冲突，可安全并行。
+  if (saveCandidates.length) {
+    const remainingBudget = pollDeadline - Date.now();
+    if (remainingBudget < 6000) {
+      // 剩余预算不足以完成任何保存：全部留到下次轮询
+      for (const c of saveCandidates) {
+        jobUpdates.push({ task_id: c.job.task_id, status: "polling", error: null, pollCount: c.pollCount });
+      }
+    } else {
+      const saveTimeout = Math.min(SAVE_TIMEOUT_MS, remainingBudget);
+      const saveResults = await Promise.allSettled(
+        saveCandidates.map((c) =>
+          withTimeout(saveCompletedApiJob(orderSnapshot, c.job, c.imageUrl, c.status, pendingAssets), saveTimeout, `图 ${c.job.image_number} 保存`)
+        )
+      );
+      saveResults.forEach((res, i) => {
+        const c = saveCandidates[i];
+        if (res.status === "fulfilled") {
+          const saved = res.value;
+          if (saved && saved.asset) {
+            pendingAssets.push(saved.asset);
+            notes.push(...saved.notes);
+            jobUpdates.push({ task_id: c.job.task_id, status: "completed", error: null, pollCount: c.pollCount, resultImageUrl: c.imageUrl });
+          } else if (saved && !saved.asset) {
+            // 幂等跳过（已有同编号资产）
+            notes.push(...saved.notes);
+            jobUpdates.push({ task_id: c.job.task_id, status: "completed", error: null, pollCount: c.pollCount, resultImageUrl: c.imageUrl });
+          } else {
+            jobUpdates.push({ task_id: c.job.task_id, status: "polling", error: null, pollCount: c.pollCount });
+          }
+        } else {
+          // 保存超时/失败 ≠ 生成失败：图片在 APIMart 已生成好，下次轮询幂等续传。
+          // 不写备注（避免刷屏），错误仅记录在 job 上。
+          jobUpdates.push({ task_id: c.job.task_id, status: "polling", error: errorSummary(res.reason), pollCount: c.pollCount });
+        }
+      });
     }
   }
 
