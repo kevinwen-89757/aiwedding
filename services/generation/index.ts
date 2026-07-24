@@ -280,8 +280,14 @@ export async function startApiGeneration(order: LocalOrder) {
   const nowTs = Date.now();
   const STUCK_TASK_AGE_MS = Number(process.env.STUCK_TASK_AGE_MS ?? 20 * 60 * 1000);
   const STUCK_TASK_POLL_THRESHOLD = Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 40);
+  // 创建失败（task_id 以 create-failed-/empty-prompt- 开头）是「从未真正提交到 APIMart」的任务
+  // （多为余额不足 402 / 网络瞬时错），与生成失败不同，可安全用相同 prompt 重新提交，直到成功。
+  const isCreationFailure = (j: { status: string; task_id: string }) =>
+    j.status === "failed" && (j.task_id.startsWith("create-failed-") || j.task_id.startsWith("empty-prompt-"));
   const stuckJobs = (order.generation_jobs ?? []).filter(
-    (j) => (j.status === "polling" || j.status === "created") && (nowTs - Date.parse(j.created_at) > STUCK_TASK_AGE_MS || (j.poll_count ?? 0) >= STUCK_TASK_POLL_THRESHOLD)
+    (j) =>
+      ((j.status === "polling" || j.status === "created") && (nowTs - Date.parse(j.created_at) > STUCK_TASK_AGE_MS || (j.poll_count ?? 0) >= STUCK_TASK_POLL_THRESHOLD)) ||
+      isCreationFailure(j)
   );
   let orderForSubmit = order;
   if (stuckJobs.length) {
