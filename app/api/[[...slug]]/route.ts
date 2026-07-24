@@ -12,9 +12,10 @@ function jsonError(msg: string, status = 400) {
   return NextResponse.json({ error: msg }, { status });
 }
 
-// 生成任务提交（上传参考图 + 调用 APIMart 创建任务）约需 15-30 秒，
-// 默认 10 秒超时会被 Vercel 杀掉，故统一放宽到 60 秒（Hobby 上限）。
-export const maxDuration = 60;
+// 生成任务提交/轮询保存（下载 4K + 水印 + 上传 COS）单张可达 20-40 秒，
+// Vercel Fluid Compute 模式下 Hobby 计划 maxDuration 上限为 300 秒。
+// ⚠️ 若部署报错说明项目未启用 Fluid Compute，需在 Vercel 控制台开启或改回 60。
+export const maxDuration = 300;
 
 // ─── Route helpers ───────────────────────────────────────────────────────────
 
@@ -679,7 +680,7 @@ async function handleRedeemCodePOST(request: Request) {
     })();
 
     return NextResponse.json({ ok: true, message: "兑换成功！系统正在后台自动开始生成，请稍后在状态页查看进度。", redirectTo: `/orders/${orderId}/status` });
-  } catch (e) {
+  } catch {
     return jsonError("请求格式错误", 400);
   }
 }

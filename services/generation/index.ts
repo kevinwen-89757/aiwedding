@@ -607,14 +607,14 @@ export async function pollApiGeneration(orderId: string) {
     })
   );
 
-  // 时间预算：从函数入口起算，总预算 ~32s（Vercel 60s 网关上限，
-  // 留 ~20s 给批量写回 + 各处跨境读写抖动，实测总耗时需压在 50s 内）。
-  // 保存是重操作（下载 4K + 水印 + 上传 COS），一轮最多 3 张【并行】保存，
-  // 单张限时 SAVE_TIMEOUT_MS；超时放弃本张（COS 已传部分下次幂等复用）。
-  const pollTimeBudgetMs = Number(process.env.POLL_TIME_BUDGET_MS ?? 32000);
+  // 时间预算：从函数入口起算，总预算 ~90s（route maxDuration=300s，余量充足；
+  // 不拉满是因为状态页每 60s 自动触发轮询，预算太长会导致多个轮询重叠打 COS）。
+  // 保存是重操作（下载 4K + 水印 + 上传 COS），一轮最多 6 张【并行】保存，
+  // 单张限时 SAVE_TIMEOUT_MS=60s（4K 慢下载也够）；超时放弃本张（COS 已传部分下次幂等复用）。
+  const pollTimeBudgetMs = Number(process.env.POLL_TIME_BUDGET_MS ?? 90000);
   const pollDeadline = pollStartedAt + pollTimeBudgetMs;
-  const SAVE_TIMEOUT_MS = Number(process.env.SAVE_TIMEOUT_MS ?? 18000);
-  const MAX_SAVE_PER_POLL = 3;
+  const SAVE_TIMEOUT_MS = Number(process.env.SAVE_TIMEOUT_MS ?? 60000);
+  const MAX_SAVE_PER_POLL = Number(process.env.MAX_SAVE_PER_POLL ?? 6);
   const MAX_QUERY_ERROR_POLLS = Number(process.env.MAX_TASK_POLL_COUNT ?? 60);
 
   // 本轮累积的变更：统一在处理结束后「一次性」写回 orders.json，
