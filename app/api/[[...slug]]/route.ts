@@ -206,24 +206,29 @@ async function handleOrderPollGenerationPOST(id: string) {
   try {
     // 自愈：状态页每 60 秒轮询时触发。
     // 1) 已付款但未提交任务（ready_to_generate）→ 自动启动生成；
-    // 2) 生成中但任务数少于计划（被 60s 超时掐断）→ 续交剩余任务（断点续传）。
-    // 这样无论触发入口的后台任务是否被 Serverless 中断，都能靠客户端轮询自动救回。
+    // 2) 生成中但任务数少于计划（被超时掐断）→ 续交剩余任务（断点续传）；
+    // 3) 生成中存在卡死任务（polling/created 超过阈值，APIMart 队列已丢弃）→ 重新提交。
+    // 触发重提时本轮【不再】调用 poll（避免与「提交写」竞争 orders.json 导致互相覆盖），
+    // 下一次自动轮询（60s 后）再查询新提交的任务。重提本身 fire-and-forget，
+    // 不在本次请求内 await，避免叠加保存耗时冲破 Cloudflare ~100s 上限（520）。
     const planned = getGenerationRuntimeConfig(current)?.plannedTaskCount ?? 0;
     const submitted = current.generation_jobs?.length ?? 0;
-    if (current.status === "ready_to_generate" && submitted === 0) {
-      try {
-        await generateOrderPreviews(id, { source: "admin" });
-      } catch (e) {
-        console.error("[poll-auto-start] failed:", e);
-      }
-    } else if (current.status === "generating" && planned > 0 && submitted < planned) {
-      try {
-        await generateOrderPreviews(id, { source: "admin" });
-      } catch (e) {
-        console.error("[poll-resume] failed:", e);
-      }
+    const stuckCount = (current.generation_jobs ?? []).filter(
+      (j) => (j.status === "polling" || j.status === "created") && (Date.now() - Date.parse(j.created_at) > Number(process.env.STUCK_TASK_AGE_MS ?? 1200000) || (j.poll_count ?? 0) >= Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 40))
+    ).length;
+    const needsResubmit = (current.status === "ready_to_generate" && submitted === 0) || (current.status === "generating" && (submitted < planned || stuckCount > 0));
+    let order: Awaited<ReturnType<typeof getLocalOrder>> | null = current;
+    if (needsResubmit) {
+      void (async () => {
+        try {
+          await generateOrderPreviews(id, { source: "admin" });
+        } catch (e) {
+          console.error("[poll-resume/stuck] failed:", e);
+        }
+      })();
+    } else {
+      order = await pollApiGeneration(id);
     }
-    const order = await pollApiGeneration(id);
     return NextResponse.json({ ok: true, status: order?.status, generatedCount: order?.order_assets.filter((a) => a.kind === "generated").length ?? 0, pendingCount: order?.generation_jobs?.filter((job) => job.status !== "completed" && job.status !== "failed").length ?? 0, generationJobsCount: order?.generation_jobs?.length ?? 0 });
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "Poll generation failed", 500);
@@ -517,22 +522,26 @@ async function handleAdminPollGenerationPOST(request: Request, id: string) {
     if (current) {
       const planned = runtimeConfig?.plannedTaskCount ?? 0;
       const submitted = current.generation_jobs?.length ?? 0;
-      if (current.status === "ready_to_generate" && submitted === 0) {
-        try {
-          await generateOrderPreviews(id, { source: "admin" });
-        } catch (e) {
-          console.error("[poll-auto-start] failed:", e);
-        }
-      } else if (current.status === "generating" && planned > 0 && submitted < planned) {
-        try {
-          await generateOrderPreviews(id, { source: "admin" });
-        } catch (e) {
-          console.error("[poll-resume] failed:", e);
-        }
+      const stuckCount = (current.generation_jobs ?? []).filter(
+        (j) => (j.status === "polling" || j.status === "created") && (Date.now() - Date.parse(j.created_at) > Number(process.env.STUCK_TASK_AGE_MS ?? 1200000) || (j.poll_count ?? 0) >= Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 40))
+      ).length;
+      // 触发重提时本轮不再 poll（避免与提交写竞争 orders.json），下一次 60s 自动轮询再查新任务。
+      // 重提 fire-and-forget，避免叠加保存耗时冲破 Cloudflare ~100s 上限（520）。
+      const needsResubmit = (current.status === "ready_to_generate" && submitted === 0) || (current.status === "generating" && (submitted < planned || stuckCount > 0));
+      if (needsResubmit) {
+        void (async () => {
+          try {
+            await generateOrderPreviews(id, { source: "admin" });
+          } catch (e) {
+            console.error("[poll-resume/stuck] failed:", e);
+          }
+        })();
+        // 本轮不再 poll（避免与提交写竞争 orders.json），下一次 60s 自动轮询再查新任务。
+        return NextResponse.json({ ok: true, status: current?.status, generatedCount: current?.order_assets.filter((a) => a.kind === "generated").length ?? 0, pendingCount: current?.generation_jobs?.filter((job) => job.status !== "completed" && job.status !== "failed").length ?? 0, generationJobsCount: current?.generation_jobs?.length ?? 0 });
       }
+      const order = await pollApiGeneration(id);
+      return NextResponse.json({ ok: true, status: order?.status, generatedCount: order?.order_assets.filter((a) => a.kind === "generated").length ?? 0, pendingCount: order?.generation_jobs?.filter((job) => job.status !== "completed" && job.status !== "failed").length ?? 0, generationJobsCount: order?.generation_jobs?.length ?? 0 });
     }
-    const order = await pollApiGeneration(id);
-    return NextResponse.json({ ok: true, status: order?.status, generatedCount: order?.order_assets.filter((a) => a.kind === "generated").length ?? 0, pendingCount: order?.generation_jobs?.filter((job) => job.status !== "completed" && job.status !== "failed").length ?? 0, generationJobsCount: order?.generation_jobs?.length ?? 0 });
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "Poll generation failed", 500);
   }

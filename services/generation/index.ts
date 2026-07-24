@@ -273,6 +273,31 @@ export async function startApiGeneration(order: LocalOrder) {
   if (!plan.length) throw new Error("没有可执行的生成计划。");
   const runtimeConfig = getGenerationRuntimeConfig(order);
 
+  // 卡死任务自愈：APIMart 异步队列在拥堵/超时时可能静默丢弃任务（表现为任务长时间
+  // 停留在 polling/created 但永远不完成）。这类任务已无法靠轮询救回，必须移除后用
+  // 相同 prompt 重新提交（参考图 URL 已缓存在 metadata，不重复上传）。
+  // 阈值：任务创建超过 20 分钟，或已轮询 >= 40 次仍无结果。
+  const nowTs = Date.now();
+  const STUCK_TASK_AGE_MS = Number(process.env.STUCK_TASK_AGE_MS ?? 20 * 60 * 1000);
+  const STUCK_TASK_POLL_THRESHOLD = Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 40);
+  const stuckJobs = (order.generation_jobs ?? []).filter(
+    (j) => (j.status === "polling" || j.status === "created") && (nowTs - Date.parse(j.created_at) > STUCK_TASK_AGE_MS || (j.poll_count ?? 0) >= STUCK_TASK_POLL_THRESHOLD)
+  );
+  let orderForSubmit = order;
+  if (stuckJobs.length) {
+    const stuckNumbers = stuckJobs.map((j) => j.image_number).sort((a, b) => a - b);
+    const cleaned = await updateLocalOrder(order.id, (current) => ({
+      ...current,
+      generation_jobs: (current.generation_jobs ?? []).filter((j) => !stuckJobs.some((s) => s.task_id === j.task_id)),
+      admin_note: appendApiProgressNoteText(current.admin_note, [
+        `检测到 ${stuckJobs.length} 个任务卡在 ${stuckJobs[0].status} 超过阈值（最早创建于 ${stuckJobs[0].created_at}），已移除并准备用相同 prompt 重新提交：${stuckNumbers.join(", ")}`
+      ])
+    }));
+    orderForSubmit = cleaned ?? order;
+  }
+  // 后续提交基于「已清理卡死任务」的订单对象进行（参考图/资产等其余字段不变）。
+  order = orderForSubmit;
+
   // 时间预算：Serverless 函数有 60 秒硬上限。单次调用最多提交到预算点就主动
   // return，已提交的任务已落盘（见下方循环内的 updateLocalOrder），下一次轮询
   // 会自动续交剩余任务。这样无论后台手动点击还是自动轮询，单次请求都不会超过
@@ -590,7 +615,11 @@ export async function pollApiGeneration(orderId: string) {
     }
   }
   if (!order) throw new Error("Order not found");
-  if (!jobs.length) throw new Error("当前订单没有可查询的 APIMart task_id。");
+  if (!jobs.length) {
+    // 生成任务还在后台提交中（如刚触发自动启动/重提），本轮无可查询任务，等下次轮询。
+    if (order.status === "generating" || order.status === "ready_to_generate") return order;
+    throw new Error("当前订单没有可查询的 APIMart task_id。");
+  }
   const orderSnapshot: LocalOrder = order;
 
   // 并行查询所有未完成的 job（避免串行查询耗时过长）
@@ -614,7 +643,7 @@ export async function pollApiGeneration(orderId: string) {
   // 候选随机打散让重叠轮询各自保存不同的图（自然分工），幂等机制保证不重不漏。
   const pollTimeBudgetMs = Number(process.env.POLL_TIME_BUDGET_MS ?? 150000);
   const pollDeadline = pollStartedAt + pollTimeBudgetMs;
-  const SAVE_TIMEOUT_MS = Number(process.env.SAVE_TIMEOUT_MS ?? 80000);
+  const SAVE_TIMEOUT_MS = Number(process.env.SAVE_TIMEOUT_MS ?? 60000);
   const MAX_SAVE_PER_POLL = Number(process.env.MAX_SAVE_PER_POLL ?? 2);
   const MAX_QUERY_ERROR_POLLS = Number(process.env.MAX_TASK_POLL_COUNT ?? 60);
 
