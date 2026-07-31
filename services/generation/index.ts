@@ -767,20 +767,16 @@ export async function pollApiGeneration(orderId: string) {
     })
   );
 
-  // [DIAG] 诊断：汇总本轮每个任务在 APIMart 的真实状态，便于定位"慢/0张"根因
+  // [DIAG] 诊断：单行紧凑汇总，避免被 Vercel 日志截断
   try {
     const byStatus: Record<string, number> = {};
     for (const r of pollResults) {
       const s = r.ok ? (r.result?.status ?? "unknown") : "query_error";
       byStatus[s] = (byStatus[s] ?? 0) + 1;
     }
-    console.error("[poll-debug] task status summary", {
-      orderId,
-      total: pollResults.length,
-      byStatus,
-      sampleErrors: pollResults.filter((r) => !r.ok).slice(0, 3).map((r) => ({ task_id: r.job.task_id.slice(0, 16), error: r.error })),
-      sampleStatuses: pollResults.filter((r) => r.ok).slice(0, 5).map((r) => ({ task_id: r.job.task_id.slice(0, 16), status: r.result?.status, hasUrl: !!r.result?.imageUrl }))
-    });
+    const completed = pollResults.filter((r) => r.ok && ["completed", "complete", "success", "succeeded", "done"].includes(r.result?.status ?? "")).length;
+    const sampleErr = pollResults.filter((r) => !r.ok).slice(0, 1).map((r) => String(r.error ?? "").slice(0, 120));
+    console.error(`[poll-debug] total=${pollResults.length} byStatus=${JSON.stringify(byStatus)} completed_on_apimart=${completed} qErr=${pollResults.filter((r) => !r.ok).length}${sampleErr.length ? " err1=" + sampleErr[0] : ""}`);
   } catch { /* ignore */ }
 
   // 时间预算：从函数入口起算，总预算 ~150s（route maxDuration=300s，余量充足）。
@@ -834,7 +830,8 @@ export async function pollApiGeneration(orderId: string) {
   // 随机打散：状态页 60s 自动轮询与手动轮询会重叠，随机后各轮保存不同的图（自然分工）。
   // 每个候选 job 的 image_number 不同，写入的 COS 路径互不冲突，可安全并行。
   if (saveCandidates.length) {
-    console.error("[poll-debug] entering save phase", { orderId, candidates: saveCandidates.length, maxSave: MAX_SAVE_PER_POLL, saveTimeoutMs: Math.min(SAVE_TIMEOUT_MS, pollDeadline - Date.now()) });
+    const saveTimeout = Math.min(SAVE_TIMEOUT_MS, pollDeadline - Date.now());
+    console.error(`[poll-debug] SAVE-ENTER candidates=${saveCandidates.length} max=${MAX_SAVE_PER_POLL} timeout=${saveTimeout}`);
     // Fisher-Yates 打散
     for (let i = saveCandidates.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -848,12 +845,11 @@ export async function pollApiGeneration(orderId: string) {
     const remainingBudget = pollDeadline - Date.now();
     if (remainingBudget < 10000) {
       // 剩余预算不足以完成任何保存：全部留到下次轮询
-      console.error("[poll-debug] save skipped: budget < 10s", { orderId });
+      console.error("[poll-debug] SAVE-SKIP budget<10s");
       for (const c of toSave) {
         jobUpdates.push({ task_id: c.job.task_id, status: "polling", error: null, pollCount: c.pollCount });
       }
     } else {
-      const saveTimeout = Math.min(SAVE_TIMEOUT_MS, remainingBudget);
       const saveResults = await Promise.allSettled(
         toSave.map((c) =>
           withTimeout(saveCompletedApiJob(orderSnapshot, c.job, c.imageUrl, c.status, pendingAssets), saveTimeout, `图 ${c.job.image_number} 保存`)
@@ -867,12 +863,12 @@ export async function pollApiGeneration(orderId: string) {
             pendingAssets.push(saved.asset);
             notes.push(...saved.notes);
             jobUpdates.push({ task_id: c.job.task_id, status: "completed", error: null, pollCount: c.pollCount, resultImageUrl: c.imageUrl });
-            console.error("[poll-debug] SAVE OK", { orderId, image: c.job.image_number });
+            console.error(`[poll-debug] SAVE-OK img=${c.job.image_number}`);
           } else if (saved && !saved.asset) {
             // 幂等跳过（已有同编号资产）
             notes.push(...saved.notes);
             jobUpdates.push({ task_id: c.job.task_id, status: "completed", error: null, pollCount: c.pollCount, resultImageUrl: c.imageUrl });
-            console.error("[poll-debug] SAVE idempotent-skip", { orderId, image: c.job.image_number });
+            console.error(`[poll-debug] SAVE-SKIP-IDEM img=${c.job.image_number}`);
           } else {
             jobUpdates.push({ task_id: c.job.task_id, status: "polling", error: null, pollCount: c.pollCount });
           }
@@ -880,12 +876,12 @@ export async function pollApiGeneration(orderId: string) {
           // 保存超时/失败 ≠ 生成失败：图片在 APIMart 已生成好，下次轮询幂等续传。
           // 不写备注（避免刷屏），错误仅记录在 job 上。
           jobUpdates.push({ task_id: c.job.task_id, status: "polling", error: errorSummary(res.reason), pollCount: c.pollCount });
-          console.error("[poll-debug] SAVE FAILED", { orderId, image: c.job.image_number, reason: errorSummary(res.reason) });
+          console.error(`[poll-debug] SAVE-FAIL img=${c.job.image_number} reason=${String(errorSummary(res.reason)).slice(0, 140)}`);
         }
       });
     }
   } else {
-    console.error("[poll-debug] no save candidates (0 tasks completed on APIMart this round)", { orderId });
+    console.error("[poll-debug] NO-SAVE-CANDIDATES 0 completed on APIMart this round");
   }
 
   // 单次批量写回：新增资产 + 任务状态变更 + 备注 + 订单状态收尾，
