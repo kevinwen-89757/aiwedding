@@ -485,6 +485,18 @@ async function handleAdminOrderByIdPATCH(request: Request, id: string) {
     });
     return NextResponse.json({ ok: true, released: true });
   }
+  if (body.action === "reset_create_count") {
+    // 运维恢复动作：重置本单「累计创建任务计数」并给在跑任务新的重试额度。
+    // 用于计费护栏误伤后的止损（例如慢速 4K 任务被当卡死删除重提、计数逼近预算上限，
+    // 导致缺失图无法重建）。只动计数与 create_attempt，不删除任何任务/资产。
+    const target = Number.isFinite(Number(body.value)) ? Number(body.value) : 0;
+    await updateLocalOrder(id, (order) => ({
+      ...order,
+      metadata: { ...(order.metadata ?? {}), apimartCreateCount: target },
+      generation_jobs: (order.generation_jobs ?? []).map((job) => ({ ...job, create_attempt: 1 }))
+    }));
+    return NextResponse.json({ ok: true, apimartCreateCount: target });
+  }
   const order = await updateLocalOrderStatus(id, body.status ?? current.status, { admin_note: body.adminNote ?? null, reject_reason: body.rejectReason ?? null });
   return order ? NextResponse.json({ ok: true }) : jsonError("Order not found", 404);
 }

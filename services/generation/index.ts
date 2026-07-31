@@ -292,8 +292,12 @@ export async function startApiGeneration(order: LocalOrder) {
   // 相同 prompt 重新提交（参考图 URL 已缓存在 metadata，不重复上传）。
   // 阈值：任务创建超过 20 分钟，或已轮询 >= 40 次仍无结果。
   const nowTs = Date.now();
-  const STUCK_TASK_AGE_MS = Number(process.env.STUCK_TASK_AGE_MS ?? 20 * 60 * 1000);
-  const STUCK_TASK_POLL_THRESHOLD = Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 40);
+  // ⚠️ 阈值已从 20 分钟上调到 90 分钟：4K 生成本身就需要 20~40 分钟，
+  // 旧阈值会把「还在正常生成」的任务误判为卡死并删除重提，导致：
+  //   ① 误杀在跑任务（APIMart 其实在算）；② 重提受 38s 预算限制只重建一部分 → 永久丢图。
+  // 只有在跑超过 90 分钟（或轮询 ≥60 次）仍无结果，才视为被 APIMart 静默丢弃。
+  const STUCK_TASK_AGE_MS = Number(process.env.STUCK_TASK_AGE_MS ?? 90 * 60 * 1000);
+  const STUCK_TASK_POLL_THRESHOLD = Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 60);
   // 创建失败（task_id 以 create-failed-/empty-prompt- 开头）是「从未真正提交到 APIMart」的任务
   // （多为网络瞬时错），与生成失败不同，可安全用相同 prompt 重新提交，直到成功。
   // ⚠️ 例外：余额不足（HTTP 402 insufficient balance）在充值前重提必然再次失败，
@@ -338,10 +342,17 @@ export async function startApiGeneration(order: LocalOrder) {
   let createCallsMade = totalCreateSoFar;
 
   // 卡住/创建失败的任务，按「是否还有重试额度」分成两组
+  // ⚠️ 关键修复（2026-08-01）：对「仍在轮询/创建中」的任务，绝不因超龄就删除重提。
+  // 4K 生成本就需要 20~40 分钟，旧逻辑把这类慢任务当卡死删除，再叠加 38s 重提预算，
+  // 只会重建一部分 → 永久丢图。现在只对「真正失败」的任务重提：
+  //   ① 从未提交成功（create-failed/empty-prompt）；
+  //   ② APIMart 显式返回 failed（非余额不足）；
+  //   ③ 安全网：轮询/创建中超过 90 分钟 或 轮询 ≥60 次仍无结果（视为被静默丢弃）。
   const candidateStuck = (order.generation_jobs ?? []).filter(
     (j) =>
-      ((j.status === "polling" || j.status === "created") && (nowTs - Date.parse(j.created_at) > STUCK_TASK_AGE_MS || (j.poll_count ?? 0) >= STUCK_TASK_POLL_THRESHOLD)) ||
-      isCreationFailure(j)
+      isCreationFailure(j) ||
+      (j.status === "failed" && !isBalanceFailure(j) && !j.task_id.startsWith("create-failed-") && !j.task_id.startsWith("empty-prompt-")) ||
+      ((j.status === "polling" || j.status === "created") && (nowTs - Date.parse(j.created_at) > STUCK_TASK_AGE_MS || (j.poll_count ?? 0) >= STUCK_TASK_POLL_THRESHOLD))
   );
   // 还有额度 → 移除后重提；已达上限或订单预算耗尽 → 就地转 failed 终态（让订单能正常收尾）
   const stuckJobs = budgetExhausted ? [] : candidateStuck.filter((j) => (j.create_attempt ?? 1) < MAX_CREATE_ATTEMPTS);
