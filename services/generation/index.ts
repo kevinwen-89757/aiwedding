@@ -727,6 +727,8 @@ export async function pollApiGeneration(orderId: string) {
   // ⚠️ 预算必须从函数入口开始计时（包含订单读取 + APIMart 状态查询的耗时），
   // 否则前置耗时不计入预算，总时长冲破 Vercel 60s → 函数被杀 → 批量写回未执行 → 本轮全部白干。
   const pollStartedAt = Date.now();
+  // [DIAG] 诊断聚合对象，随响应一并返回，便于通过 curl 完整读取（避免 Vercel 日志截断）
+  const debug: Record<string, unknown> = { startedAt: new Date(pollStartedAt).toISOString() };
   let order = await getLocalOrder(orderId);
   if (!order) throw new Error("Order not found");
   let jobs = order.generation_jobs ?? [];
@@ -775,7 +777,12 @@ export async function pollApiGeneration(orderId: string) {
       byStatus[s] = (byStatus[s] ?? 0) + 1;
     }
     const completed = pollResults.filter((r) => r.ok && ["completed", "complete", "success", "succeeded", "done"].includes(r.result?.status ?? "")).length;
-    const sampleErr = pollResults.filter((r) => !r.ok).slice(0, 1).map((r) => String(r.error ?? "").slice(0, 120));
+    const sampleErr = pollResults.filter((r) => !r.ok).slice(0, 1).map((r) => String(r.error ?? "").slice(0, 160));
+    debug.totalTasks = pollResults.length;
+    debug.byStatus = byStatus;
+    debug.completedOnApimart = completed;
+    debug.queryErrors = pollResults.filter((r) => !r.ok).length;
+    if (sampleErr.length) debug.sampleQueryError = sampleErr[0];
     console.error(`[poll-debug] total=${pollResults.length} byStatus=${JSON.stringify(byStatus)} completed_on_apimart=${completed} qErr=${pollResults.filter((r) => !r.ok).length}${sampleErr.length ? " err1=" + sampleErr[0] : ""}`);
   } catch { /* ignore */ }
 
@@ -831,6 +838,9 @@ export async function pollApiGeneration(orderId: string) {
   // 每个候选 job 的 image_number 不同，写入的 COS 路径互不冲突，可安全并行。
   if (saveCandidates.length) {
     const saveTimeout = Math.min(SAVE_TIMEOUT_MS, pollDeadline - Date.now());
+    debug.saveEntered = true;
+    debug.saveCandidates = saveCandidates.length;
+    debug.saveTimeoutMs = saveTimeout;
     console.error(`[poll-debug] SAVE-ENTER candidates=${saveCandidates.length} max=${MAX_SAVE_PER_POLL} timeout=${saveTimeout}`);
     // Fisher-Yates 打散
     for (let i = saveCandidates.length - 1; i > 0; i--) {
@@ -863,11 +873,13 @@ export async function pollApiGeneration(orderId: string) {
             pendingAssets.push(saved.asset);
             notes.push(...saved.notes);
             jobUpdates.push({ task_id: c.job.task_id, status: "completed", error: null, pollCount: c.pollCount, resultImageUrl: c.imageUrl });
+            debug.savedOk = (Number(debug.savedOk) || 0) + 1;
             console.error(`[poll-debug] SAVE-OK img=${c.job.image_number}`);
           } else if (saved && !saved.asset) {
             // 幂等跳过（已有同编号资产）
             notes.push(...saved.notes);
             jobUpdates.push({ task_id: c.job.task_id, status: "completed", error: null, pollCount: c.pollCount, resultImageUrl: c.imageUrl });
+            debug.savedIdempotent = (Number(debug.savedIdempotent) || 0) + 1;
             console.error(`[poll-debug] SAVE-SKIP-IDEM img=${c.job.image_number}`);
           } else {
             jobUpdates.push({ task_id: c.job.task_id, status: "polling", error: null, pollCount: c.pollCount });
@@ -876,11 +888,14 @@ export async function pollApiGeneration(orderId: string) {
           // 保存超时/失败 ≠ 生成失败：图片在 APIMart 已生成好，下次轮询幂等续传。
           // 不写备注（避免刷屏），错误仅记录在 job 上。
           jobUpdates.push({ task_id: c.job.task_id, status: "polling", error: errorSummary(res.reason), pollCount: c.pollCount });
+          debug.savedFail = (Number(debug.savedFail) || 0) + 1;
+          debug.sampleSaveError = String(errorSummary(res.reason)).slice(0, 200);
           console.error(`[poll-debug] SAVE-FAIL img=${c.job.image_number} reason=${String(errorSummary(res.reason)).slice(0, 140)}`);
         }
       });
     }
   } else {
+    debug.saveEntered = false;
     console.error("[poll-debug] NO-SAVE-CANDIDATES 0 completed on APIMart this round");
   }
 
@@ -930,7 +945,8 @@ export async function pollApiGeneration(orderId: string) {
     }
     return next;
   });
-  return updated ?? getLocalOrder(orderId);
+  debug.durationMs = Date.now() - pollStartedAt;
+  return { order: updated ?? getLocalOrder(orderId), debug };
 }
 
 export async function generateOrderPreviews(orderId: string, options: { source?: "user" | "admin" } = {}) {

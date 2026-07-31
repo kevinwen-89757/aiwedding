@@ -215,13 +215,15 @@ async function handleOrderPollGenerationPOST(id: string) {
     const submitted = current.generation_jobs?.length ?? 0;
     const stuckCount = (current.generation_jobs ?? []).filter(
       // ⚠️ 计费护栏：只有「还有重试额度」的卡死任务才触发重提，否则会无限重提反复扣费。
+      // ⚠️ 阈值与 startApiGeneration 对齐（90 分钟 / 60 次轮询）：4K 生成本身就慢，不能因超龄就重提。
       (j) =>
         (j.status === "polling" || j.status === "created") &&
         (j.create_attempt ?? 1) < Number(process.env.MAX_CREATE_ATTEMPTS ?? 2) &&
-        (Date.now() - Date.parse(j.created_at) > Number(process.env.STUCK_TASK_AGE_MS ?? 1200000) || (j.poll_count ?? 0) >= Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 40))
+        (Date.now() - Date.parse(j.created_at) > Number(process.env.STUCK_TASK_AGE_MS ?? 90 * 60 * 1000) || (j.poll_count ?? 0) >= Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 60))
     ).length;
     const needsResubmit = (current.status === "ready_to_generate" && submitted === 0) || (current.status === "generating" && (submitted < planned || stuckCount > 0));
     let order: Awaited<ReturnType<typeof getLocalOrder>> | null = current;
+    let pollDebug: Record<string, unknown> | undefined;
     if (needsResubmit) {
       // 必须 await（不能 fire-and-forget）：Vercel 在 HTTP 响应返回后可能冻结后台任务，
       // 若用 fire-and-forget，重新提交会被截断、永远跑不完。await 期间函数保持存活，
@@ -234,9 +236,11 @@ async function handleOrderPollGenerationPOST(id: string) {
       }
       order = await getLocalOrder(id);
     } else {
-      order = await pollApiGeneration(id);
+      const pollResult = await pollApiGeneration(id);
+      order = pollResult.order;
+      pollDebug = pollResult.debug;
     }
-    return NextResponse.json({ ok: true, status: order?.status, generatedCount: order?.order_assets.filter((a) => a.kind === "generated").length ?? 0, pendingCount: order?.generation_jobs?.filter((job) => job.status !== "completed" && job.status !== "failed").length ?? 0, generationJobsCount: order?.generation_jobs?.length ?? 0 });
+    return NextResponse.json({ ok: true, status: order?.status, generatedCount: order?.order_assets.filter((a) => a.kind === "generated").length ?? 0, pendingCount: order?.generation_jobs?.filter((job) => job.status !== "completed" && job.status !== "failed").length ?? 0, generationJobsCount: order?.generation_jobs?.length ?? 0, debug: pollDebug });
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "Poll generation failed", 500);
   }
@@ -542,7 +546,10 @@ async function handleAdminPollGenerationPOST(request: Request, id: string) {
       const planned = runtimeConfig?.plannedTaskCount ?? 0;
       const submitted = current.generation_jobs?.length ?? 0;
       const stuckCount = (current.generation_jobs ?? []).filter(
-        (j) => (j.status === "polling" || j.status === "created") && (Date.now() - Date.parse(j.created_at) > Number(process.env.STUCK_TASK_AGE_MS ?? 1200000) || (j.poll_count ?? 0) >= Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 40))
+        // ⚠️ 阈值与 startApiGeneration 对齐（90 分钟 / 60 次轮询）：4K 生成本身就慢，
+        // 若用 20 分钟阈值，正常生成的任务会被误判卡死 → 每 60s 走重提分支 → 永远不进
+        // pollApiGeneration → 已完成的图永远存不下来。
+        (j) => (j.status === "polling" || j.status === "created") && ((j.create_attempt ?? 1) < Number(process.env.MAX_CREATE_ATTEMPTS ?? 2)) && (Date.now() - Date.parse(j.created_at) > Number(process.env.STUCK_TASK_AGE_MS ?? 90 * 60 * 1000) || (j.poll_count ?? 0) >= Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 60))
       ).length;
       // 触发重提时本轮不再做重量级 poll 保存（避免与提交写竞争 orders.json、叠加超时），
       // 下一次 60s 自动轮询再查新任务；重提本身会 await 跑完（见下方分支）。
@@ -560,8 +567,9 @@ async function handleAdminPollGenerationPOST(request: Request, id: string) {
         const refreshed = await getLocalOrder(id);
         return NextResponse.json({ ok: true, status: refreshed?.status, generatedCount: refreshed?.order_assets.filter((a) => a.kind === "generated").length ?? 0, pendingCount: refreshed?.generation_jobs?.filter((job) => job.status !== "completed" && job.status !== "failed").length ?? 0, generationJobsCount: refreshed?.generation_jobs?.length ?? 0 });
       }
-      const order = await pollApiGeneration(id);
-      return NextResponse.json({ ok: true, status: order?.status, generatedCount: order?.order_assets.filter((a) => a.kind === "generated").length ?? 0, pendingCount: order?.generation_jobs?.filter((job) => job.status !== "completed" && job.status !== "failed").length ?? 0, generationJobsCount: order?.generation_jobs?.length ?? 0 });
+      const pollResult = await pollApiGeneration(id);
+      const order = pollResult.order;
+      return NextResponse.json({ ok: true, status: order?.status, generatedCount: order?.order_assets.filter((a) => a.kind === "generated").length ?? 0, pendingCount: order?.generation_jobs?.filter((job) => job.status !== "completed" && job.status !== "failed").length ?? 0, generationJobsCount: order?.generation_jobs?.length ?? 0, debug: pollResult.debug });
     }
   } catch (error) {
     return jsonError(error instanceof Error ? error.message : "Poll generation failed", 500);
