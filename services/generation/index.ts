@@ -783,7 +783,6 @@ export async function pollApiGeneration(orderId: string) {
     debug.completedOnApimart = completed;
     debug.queryErrors = pollResults.filter((r) => !r.ok).length;
     if (sampleErr.length) debug.sampleQueryError = sampleErr[0];
-    console.error(`[poll-debug] total=${pollResults.length} byStatus=${JSON.stringify(byStatus)} completed_on_apimart=${completed} qErr=${pollResults.filter((r) => !r.ok).length}${sampleErr.length ? " err1=" + sampleErr[0] : ""}`);
   } catch { /* ignore */ }
 
   // 时间预算：从函数入口起算，总预算 ~150s（route maxDuration=300s，余量充足）。
@@ -793,7 +792,10 @@ export async function pollApiGeneration(orderId: string) {
   // 候选随机打散让重叠轮询各自保存不同的图（自然分工），幂等机制保证不重不漏。
   const pollTimeBudgetMs = Number(process.env.POLL_TIME_BUDGET_MS ?? 150000);
   const pollDeadline = pollStartedAt + pollTimeBudgetMs;
-  const SAVE_TIMEOUT_MS = Number(process.env.SAVE_TIMEOUT_MS ?? 60000);
+  // ⚠️ 4K 图「下载(APIMart) + sharp 水印 + 上传 COS(跨境)」实测需要 60~100s，
+  // 旧值 60s 会把这些本已生成的图判定超时丢弃 → 永远存不下来（"10分钟0张"根因）。
+  // 提到 120s，给慢速 4K 保存留足余量；受 route maxDuration=300s / 轮询预算 150s 上限保护。
+  const SAVE_TIMEOUT_MS = Number(process.env.SAVE_TIMEOUT_MS ?? 120000);
   const MAX_SAVE_PER_POLL = Number(process.env.MAX_SAVE_PER_POLL ?? 2);
   const MAX_QUERY_ERROR_POLLS = Number(process.env.MAX_TASK_POLL_COUNT ?? 60);
 
@@ -841,7 +843,6 @@ export async function pollApiGeneration(orderId: string) {
     debug.saveEntered = true;
     debug.saveCandidates = saveCandidates.length;
     debug.saveTimeoutMs = saveTimeout;
-    console.error(`[poll-debug] SAVE-ENTER candidates=${saveCandidates.length} max=${MAX_SAVE_PER_POLL} timeout=${saveTimeout}`);
     // Fisher-Yates 打散
     for (let i = saveCandidates.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -874,13 +875,11 @@ export async function pollApiGeneration(orderId: string) {
             notes.push(...saved.notes);
             jobUpdates.push({ task_id: c.job.task_id, status: "completed", error: null, pollCount: c.pollCount, resultImageUrl: c.imageUrl });
             debug.savedOk = (Number(debug.savedOk) || 0) + 1;
-            console.error(`[poll-debug] SAVE-OK img=${c.job.image_number}`);
           } else if (saved && !saved.asset) {
             // 幂等跳过（已有同编号资产）
             notes.push(...saved.notes);
             jobUpdates.push({ task_id: c.job.task_id, status: "completed", error: null, pollCount: c.pollCount, resultImageUrl: c.imageUrl });
             debug.savedIdempotent = (Number(debug.savedIdempotent) || 0) + 1;
-            console.error(`[poll-debug] SAVE-SKIP-IDEM img=${c.job.image_number}`);
           } else {
             jobUpdates.push({ task_id: c.job.task_id, status: "polling", error: null, pollCount: c.pollCount });
           }
@@ -890,13 +889,11 @@ export async function pollApiGeneration(orderId: string) {
           jobUpdates.push({ task_id: c.job.task_id, status: "polling", error: errorSummary(res.reason), pollCount: c.pollCount });
           debug.savedFail = (Number(debug.savedFail) || 0) + 1;
           debug.sampleSaveError = String(errorSummary(res.reason)).slice(0, 200);
-          console.error(`[poll-debug] SAVE-FAIL img=${c.job.image_number} reason=${String(errorSummary(res.reason)).slice(0, 140)}`);
         }
       });
     }
   } else {
     debug.saveEntered = false;
-    console.error("[poll-debug] NO-SAVE-CANDIDATES 0 completed on APIMart this round");
   }
 
   // 单次批量写回：新增资产 + 任务状态变更 + 备注 + 订单状态收尾，
