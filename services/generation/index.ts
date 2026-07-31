@@ -195,6 +195,8 @@ function buildGenerationJob(item: GenerationTaskItem, index: number, input: {
   error: string | null;
   resultImageUrl?: string | null;
   resolution?: string;
+  /** 这张图累计创建次数（重提时由调用方 +1 传入），缺省为首次创建 = 1 */
+  createAttempt?: number;
 }): GenerationJob {
   const now = new Date().toISOString();
   return {
@@ -203,6 +205,7 @@ function buildGenerationJob(item: GenerationTaskItem, index: number, input: {
     image_number: item.imageNumber,
     status: input.status,
     poll_count: 0,
+    create_attempt: input.createAttempt ?? 1,
     result_image_url: input.resultImageUrl ?? null,
     error: input.error,
     theme_id: item.themeId,
@@ -293,25 +296,85 @@ export async function startApiGeneration(order: LocalOrder) {
     j.status === "failed" &&
     (j.task_id.startsWith("create-failed-") || j.task_id.startsWith("empty-prompt-")) &&
     !isBalanceFailure(j);
-  const stuckJobs = (order.generation_jobs ?? []).filter(
+
+  // ============ 计费护栏（2026-08-01 加固）============
+  // ⚠️ 事故背景：APIMart 每次「创建任务」成功都实时扣费（4K 约 $0.05/张）。
+  // 此前重提逻辑没有任何次数上限，一张卡住的图会被状态页每 60s 轮询反复
+  // 「移除→重新创建→再卡住→再移除」，每一轮都真实扣费，可在数小时内烧光余额。
+  // 现在设三道刹车：
+  //   1) 单图上限 MAX_CREATE_ATTEMPTS：同一张图最多创建 N 次，超过转 failed 终态；
+  //   2) 订单级总预算 CREATE_BUDGET_RATIO：全单累计创建次数 ≤ 计划数 × 比例，超过熔断；
+  //   3) 余额不足（402）永不重提（isBalanceFailure，充值前重提必然再失败）。
+  const MAX_CREATE_ATTEMPTS = Number(process.env.MAX_CREATE_ATTEMPTS ?? 2);
+  const CREATE_BUDGET_RATIO = Number(process.env.CREATE_BUDGET_RATIO ?? 1.5);
+
+  // 每张图历史累计创建次数（历史数据无该字段时视为 1）
+  const attemptByImage = new Map<number, number>();
+  for (const j of order.generation_jobs ?? []) {
+    const prev = attemptByImage.get(j.image_number) ?? 0;
+    attemptByImage.set(j.image_number, Math.max(prev, j.create_attempt ?? 1));
+  }
+  const totalCreateSoFar = Array.from(attemptByImage.values()).reduce((a, b) => a + b, 0);
+  const orderCreateBudget = Math.ceil(plan.length * CREATE_BUDGET_RATIO);
+  const budgetExhausted = totalCreateSoFar >= orderCreateBudget;
+
+  // 卡住/创建失败的任务，按「是否还有重试额度」分成两组
+  const candidateStuck = (order.generation_jobs ?? []).filter(
     (j) =>
       ((j.status === "polling" || j.status === "created") && (nowTs - Date.parse(j.created_at) > STUCK_TASK_AGE_MS || (j.poll_count ?? 0) >= STUCK_TASK_POLL_THRESHOLD)) ||
       isCreationFailure(j)
   );
+  // 还有额度 → 移除后重提；已达上限或订单预算耗尽 → 就地转 failed 终态（让订单能正常收尾）
+  const stuckJobs = budgetExhausted ? [] : candidateStuck.filter((j) => (j.create_attempt ?? 1) < MAX_CREATE_ATTEMPTS);
+  const exhaustedJobs = candidateStuck.filter((j) => !stuckJobs.some((s) => s.task_id === j.task_id));
+
   let orderForSubmit = order;
-  if (stuckJobs.length) {
-    const stuckNumbers = stuckJobs.map((j) => j.image_number).sort((a, b) => a - b);
-    const cleaned = await updateLocalOrder(order.id, (current) => ({
-      ...current,
-      generation_jobs: (current.generation_jobs ?? []).filter((j) => !stuckJobs.some((s) => s.task_id === j.task_id)),
-      admin_note: appendApiProgressNoteText(current.admin_note, [
-        `检测到 ${stuckJobs.length} 个任务卡在 ${stuckJobs[0].status} 超过阈值（最早创建于 ${stuckJobs[0].created_at}），已移除并准备用相同 prompt 重新提交：${stuckNumbers.join(", ")}`
-      ])
-    }));
+  if (stuckJobs.length || exhaustedJobs.length) {
+    const nowIso = new Date().toISOString();
+    const cleaned = await updateLocalOrder(order.id, (current) => {
+      const notes: string[] = [];
+      let nextJobs = current.generation_jobs ?? [];
+      if (exhaustedJobs.length) {
+        const nums = Array.from(new Set(exhaustedJobs.map((j) => j.image_number))).sort((a, b) => a - b);
+        const reason = budgetExhausted
+          ? `订单累计创建次数已达预算上限（${totalCreateSoFar}/${orderCreateBudget}），为避免继续扣费已停止重试。`
+          : `已重试 ${MAX_CREATE_ATTEMPTS} 次仍未出图，为避免重复扣费已停止重试。`;
+        nextJobs = nextJobs.map((j) =>
+          exhaustedJobs.some((e) => e.task_id === j.task_id)
+            ? { ...j, status: "failed" as const, error: reason, updated_at: nowIso }
+            : j
+        );
+        notes.push(`图 ${nums.join(", ")}：${reason}`);
+      }
+      if (stuckJobs.length) {
+        const stuckNumbers = stuckJobs.map((j) => j.image_number).sort((a, b) => a - b);
+        nextJobs = nextJobs.filter((j) => !stuckJobs.some((s) => s.task_id === j.task_id));
+        notes.push(`检测到 ${stuckJobs.length} 个任务卡在 ${stuckJobs[0].status} 超过阈值（最早创建于 ${stuckJobs[0].created_at}），已移除并准备重新提交：${stuckNumbers.join(", ")}`);
+      }
+      return { ...current, generation_jobs: nextJobs, admin_note: appendApiProgressNoteText(current.admin_note, notes) };
+    });
     orderForSubmit = cleaned ?? order;
   }
   // 后续提交基于「已清理卡死任务」的订单对象进行（参考图/资产等其余字段不变）。
   order = orderForSubmit;
+
+  // 订单级熔断：预算耗尽后不再创建任何新任务，直接按当前结果收尾，等待人工介入。
+  if (budgetExhausted) {
+    console.error("[start-generation] create budget exhausted, aborting submission", {
+      orderId: order.id, totalCreateSoFar, orderCreateBudget, planLength: plan.length
+    });
+    const jobsNow = order.generation_jobs ?? [];
+    const pendingNow = jobsNow.filter((j) => j.status !== "completed" && j.status !== "failed").length;
+    await updateLocalOrder(order.id, (current) => ({
+      ...current,
+      status: pendingNow > 0 ? "generating" : (jobsNow.some((j) => j.status === "completed") ? "pending_selection" : "generation_failed"),
+      admin_note: appendApiProgressNoteText(current.admin_note, [
+        `⚠️ 计费熔断：本单累计创建任务 ${totalCreateSoFar} 次，已达预算上限 ${orderCreateBudget}（计划 ${plan.length} 张 × ${CREATE_BUDGET_RATIO}）。`,
+        `已停止自动重试，避免继续消耗 APIMart 余额。如确需继续，请人工检查后手动处理。`
+      ])
+    }));
+    return getLocalOrder(order.id);
+  }
 
   // 时间预算：Serverless 函数有 60 秒硬上限。单次调用最多提交到预算点就主动
   // return，已提交的任务已落盘（见下方循环内的 updateLocalOrder），下一次轮询
@@ -409,7 +472,8 @@ export async function startApiGeneration(order: LocalOrder) {
         taskId: `empty-prompt-${order.id}-${item.imageNumber}`,
         status: "failed",
         error: message,
-        resolution: runtimeConfig.apimartResolution
+        resolution: runtimeConfig.apimartResolution,
+        createAttempt: (attemptByImage.get(item.imageNumber) ?? 0) + 1
       });
       jobs.push(job);
       await updateLocalOrder(order.id, (current) => ({
@@ -447,7 +511,8 @@ export async function startApiGeneration(order: LocalOrder) {
         taskId: task.taskId,
         status: "created",
         error: null,
-        resolution: runtimeConfig.apimartResolution
+        resolution: runtimeConfig.apimartResolution,
+        createAttempt: (attemptByImage.get(item.imageNumber) ?? 0) + 1
       });
       jobs.push(job);
       await updateLocalOrder(order.id, (current) => ({
@@ -471,7 +536,8 @@ export async function startApiGeneration(order: LocalOrder) {
         taskId: `create-failed-${order.id}-${item.imageNumber}`,
         status: "failed",
         error: message,
-        resolution: runtimeConfig.apimartResolution
+        resolution: runtimeConfig.apimartResolution,
+        createAttempt: (attemptByImage.get(item.imageNumber) ?? 0) + 1
       });
       jobs.push(job);
       await updateLocalOrder(order.id, (current) => ({

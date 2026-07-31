@@ -61,6 +61,12 @@ export type GenerationJob = {
   image_number: number;
   status: "created" | "polling" | "completed" | "failed";
   poll_count: number;
+  /**
+   * 这张图累计向 APIMart 发起「创建任务」的次数（含重提）。
+   * ⚠️ 计费护栏：APIMart 每次成功创建都扣费，重提无上限会烧光余额。
+   * 缺省（历史数据）视为 1。超过 MAX_CREATE_ATTEMPTS 后不再自动重提。
+   */
+  create_attempt?: number;
   result_image_url?: string | null;
   error?: string | null;
   theme_id: string | null;

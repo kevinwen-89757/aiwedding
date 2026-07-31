@@ -214,7 +214,11 @@ async function handleOrderPollGenerationPOST(id: string) {
     const planned = getGenerationRuntimeConfig(current)?.plannedTaskCount ?? 0;
     const submitted = current.generation_jobs?.length ?? 0;
     const stuckCount = (current.generation_jobs ?? []).filter(
-      (j) => (j.status === "polling" || j.status === "created") && (Date.now() - Date.parse(j.created_at) > Number(process.env.STUCK_TASK_AGE_MS ?? 1200000) || (j.poll_count ?? 0) >= Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 40))
+      // ⚠️ 计费护栏：只有「还有重试额度」的卡死任务才触发重提，否则会无限重提反复扣费。
+      (j) =>
+        (j.status === "polling" || j.status === "created") &&
+        (j.create_attempt ?? 1) < Number(process.env.MAX_CREATE_ATTEMPTS ?? 2) &&
+        (Date.now() - Date.parse(j.created_at) > Number(process.env.STUCK_TASK_AGE_MS ?? 1200000) || (j.poll_count ?? 0) >= Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 40))
     ).length;
     const needsResubmit = (current.status === "ready_to_generate" && submitted === 0) || (current.status === "generating" && (submitted < planned || stuckCount > 0));
     let order: Awaited<ReturnType<typeof getLocalOrder>> | null = current;
