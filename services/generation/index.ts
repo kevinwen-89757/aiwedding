@@ -750,7 +750,7 @@ export async function pollApiGeneration(orderId: string) {
   if (!order) throw new Error("Order not found");
   if (!jobs.length) {
     // 生成任务还在后台提交中（如刚触发自动启动/重提），本轮无可查询任务，等下次轮询。
-    if (order.status === "generating" || order.status === "ready_to_generate") return order;
+    if (order.status === "generating" || order.status === "ready_to_generate") return { order, debug };
     throw new Error("当前订单没有可查询的 APIMart task_id。");
   }
   const orderSnapshot: LocalOrder = order;
@@ -946,7 +946,8 @@ export async function pollApiGeneration(orderId: string) {
     return next;
   });
   debug.durationMs = Date.now() - pollStartedAt;
-  return { order: updated ?? getLocalOrder(orderId), debug };
+  const finalOrder = updated ?? (await getLocalOrder(orderId));
+  return { order: finalOrder, debug };
 }
 
 export async function generateOrderPreviews(orderId: string, options: { source?: "user" | "admin" } = {}) {
