@@ -756,6 +756,22 @@ export async function pollApiGeneration(orderId: string) {
     })
   );
 
+  // [DIAG] 诊断：汇总本轮每个任务在 APIMart 的真实状态，便于定位"慢/0张"根因
+  try {
+    const byStatus: Record<string, number> = {};
+    for (const r of pollResults) {
+      const s = r.ok ? (r.result?.status ?? "unknown") : "query_error";
+      byStatus[s] = (byStatus[s] ?? 0) + 1;
+    }
+    console.error("[poll-debug] task status summary", {
+      orderId,
+      total: pollResults.length,
+      byStatus,
+      sampleErrors: pollResults.filter((r) => !r.ok).slice(0, 3).map((r) => ({ task_id: r.job.task_id.slice(0, 16), error: r.error })),
+      sampleStatuses: pollResults.filter((r) => r.ok).slice(0, 5).map((r) => ({ task_id: r.job.task_id.slice(0, 16), status: r.result?.status, hasUrl: !!r.result?.imageUrl }))
+    });
+  } catch { /* ignore */ }
+
   // 时间预算：从函数入口起算，总预算 ~150s（route maxDuration=300s，余量充足）。
   // ⚠️ 并行度必须小：Vercel Hobby 函数只有 1 vCPU，水印（sharp）是 CPU 密集操作，
   // 多张 4K 并行加水印会 CPU 排队导致全部超时（实测 6 并行 0 张成功）。
@@ -807,6 +823,7 @@ export async function pollApiGeneration(orderId: string) {
   // 随机打散：状态页 60s 自动轮询与手动轮询会重叠，随机后各轮保存不同的图（自然分工）。
   // 每个候选 job 的 image_number 不同，写入的 COS 路径互不冲突，可安全并行。
   if (saveCandidates.length) {
+    console.error("[poll-debug] entering save phase", { orderId, candidates: saveCandidates.length, maxSave: MAX_SAVE_PER_POLL, saveTimeoutMs: Math.min(SAVE_TIMEOUT_MS, pollDeadline - Date.now()) });
     // Fisher-Yates 打散
     for (let i = saveCandidates.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
@@ -820,6 +837,7 @@ export async function pollApiGeneration(orderId: string) {
     const remainingBudget = pollDeadline - Date.now();
     if (remainingBudget < 10000) {
       // 剩余预算不足以完成任何保存：全部留到下次轮询
+      console.error("[poll-debug] save skipped: budget < 10s", { orderId });
       for (const c of toSave) {
         jobUpdates.push({ task_id: c.job.task_id, status: "polling", error: null, pollCount: c.pollCount });
       }
@@ -838,10 +856,12 @@ export async function pollApiGeneration(orderId: string) {
             pendingAssets.push(saved.asset);
             notes.push(...saved.notes);
             jobUpdates.push({ task_id: c.job.task_id, status: "completed", error: null, pollCount: c.pollCount, resultImageUrl: c.imageUrl });
+            console.error("[poll-debug] SAVE OK", { orderId, image: c.job.image_number });
           } else if (saved && !saved.asset) {
             // 幂等跳过（已有同编号资产）
             notes.push(...saved.notes);
             jobUpdates.push({ task_id: c.job.task_id, status: "completed", error: null, pollCount: c.pollCount, resultImageUrl: c.imageUrl });
+            console.error("[poll-debug] SAVE idempotent-skip", { orderId, image: c.job.image_number });
           } else {
             jobUpdates.push({ task_id: c.job.task_id, status: "polling", error: null, pollCount: c.pollCount });
           }
@@ -849,9 +869,12 @@ export async function pollApiGeneration(orderId: string) {
           // 保存超时/失败 ≠ 生成失败：图片在 APIMart 已生成好，下次轮询幂等续传。
           // 不写备注（避免刷屏），错误仅记录在 job 上。
           jobUpdates.push({ task_id: c.job.task_id, status: "polling", error: errorSummary(res.reason), pollCount: c.pollCount });
+          console.error("[poll-debug] SAVE FAILED", { orderId, image: c.job.image_number, reason: errorSummary(res.reason) });
         }
       });
     }
+  } else {
+    console.error("[poll-debug] no save candidates (0 tasks completed on APIMart this round)", { orderId });
   }
 
   // 单次批量写回：新增资产 + 任务状态变更 + 备注 + 订单状态收尾，
