@@ -189,6 +189,17 @@ function errorSummary(error: unknown) {
   return message.length > 500 ? `${message.slice(0, 500)}...` : message;
 }
 
+/**
+ * 把「本单累计向 APIMart 发起创建任务的次数」写回 metadata（单调递增，只增不减）。
+ * ⚠️ orders.json 是最后写赢、无并发控制的：generation_jobs 可能被并发写覆盖导致
+ * 计数归零、熔断失效 → 重复创建重复扣费。这个 metadata 计数器是第二道账本，
+ * 与 jobs 计数取 max 后作为熔断依据。
+ */
+function withCreateCount(metadata: Record<string, unknown> | undefined, count: number): Record<string, unknown> {
+  const prev = Number(metadata?.apimartCreateCount ?? 0);
+  return { ...(metadata ?? {}), apimartCreateCount: Math.max(prev, count) };
+}
+
 function buildGenerationJob(item: GenerationTaskItem, index: number, input: {
   taskId: string;
   status: GenerationJob["status"];
@@ -314,9 +325,17 @@ export async function startApiGeneration(order: LocalOrder) {
     const prev = attemptByImage.get(j.image_number) ?? 0;
     attemptByImage.set(j.image_number, Math.max(prev, j.create_attempt ?? 1));
   }
-  const totalCreateSoFar = Array.from(attemptByImage.values()).reduce((a, b) => a + b, 0);
+  const jobsBasedCreateCount = Array.from(attemptByImage.values()).reduce((a, b) => a + b, 0);
+  // ⚠️ orders.json 是「最后写赢」无并发控制：并发写可能覆盖掉 generation_jobs，
+  // 导致基于 jobs 的计数被清零 → 熔断失效 → 重复创建重复扣费（这正是早期烧钱的机制）。
+  // 因此额外维护一个写在 metadata 上的【单调递增】计数器，两者取最大值作为判断依据。
+  const metaCreateCount = Number(order.metadata?.apimartCreateCount ?? 0);
+  const totalCreateSoFar = Math.max(jobsBasedCreateCount, metaCreateCount);
   const orderCreateBudget = Math.ceil(plan.length * CREATE_BUDGET_RATIO);
   const budgetExhausted = totalCreateSoFar >= orderCreateBudget;
+  // 本次运行的实时计数：每真正调用一次 APIMart「创建任务」就 +1，
+  // 并随订单一起写回 metadata.apimartCreateCount（只增不减）。
+  let createCallsMade = totalCreateSoFar;
 
   // 卡住/创建失败的任务，按「是否还有重试额度」分成两组
   const candidateStuck = (order.generation_jobs ?? []).filter(
@@ -484,6 +503,21 @@ export async function startApiGeneration(order: LocalOrder) {
       }));
       continue;
     }
+    // 循环内二次熔断：一次运行里也可能因为大量重提而突破预算，这里逐张再判一次。
+    if (createCallsMade >= orderCreateBudget) {
+      console.error("[start-generation] create budget exhausted mid-loop, stopping submission", {
+        orderId: order.id, createCallsMade, orderCreateBudget
+      });
+      await updateLocalOrder(order.id, (current) => ({
+        ...current,
+        generation_jobs: jobs,
+        metadata: withCreateCount(current.metadata, createCallsMade),
+        admin_note: appendApiProgressNoteText(current.admin_note, [
+          `⚠️ 计费熔断：本单累计创建任务已达预算上限 ${orderCreateBudget}，剩余任务不再提交。`
+        ])
+      }));
+      break;
+    }
     await updateLocalOrder(order.id, (current) => ({
       ...current,
       status: "generating",
@@ -493,6 +527,8 @@ export async function startApiGeneration(order: LocalOrder) {
       ])
     }));
     try {
+      // ⚠️ 先记账再调用：APIMart 一旦创建成功就实时扣费，宁可多记一次也不能漏记。
+      createCallsMade += 1;
       const task = await apimartCreateGenerationTask({
         prompt: item.rawPrompt,
         uploadedImageUrls: [brideImageUrl, groomImageUrl],
@@ -519,6 +555,7 @@ export async function startApiGeneration(order: LocalOrder) {
         ...current,
         status: "generating",
         generation_jobs: jobs,
+        metadata: withCreateCount(current.metadata, createCallsMade),
         admin_note: appendApiProgressNoteText(current.admin_note, [
           `图 ${item.imageNumber} task_id：${task.taskId}`,
           `图 ${item.imageNumber} 已进入 APIMart 队列，等待后续查询。`
@@ -544,6 +581,7 @@ export async function startApiGeneration(order: LocalOrder) {
         ...current,
         status: "generating",
         generation_jobs: jobs,
+        metadata: withCreateCount(current.metadata, createCallsMade),
         admin_note: appendApiProgressNoteText(current.admin_note, [
           `图 ${item.imageNumber} 创建任务失败：${message}`
         ])
@@ -558,6 +596,7 @@ export async function startApiGeneration(order: LocalOrder) {
     ...current,
     status: createdCount > 0 ? "generating" : "generation_failed",
     generation_jobs: jobs,
+    metadata: withCreateCount(current.metadata, createCallsMade),
     admin_note: appendApiProgressNoteText(current.admin_note, [
       `本轮提交：计划 ${plan.length} 个，已提交 ${jobs.length} 个，失败 ${failedCount} 个。`,
       stillPending > 0
