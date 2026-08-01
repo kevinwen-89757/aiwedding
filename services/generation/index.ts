@@ -788,15 +788,15 @@ export async function pollApiGeneration(orderId: string) {
   // 时间预算：从函数入口起算，总预算 ~150s（route maxDuration=300s，余量充足）。
   // ⚠️ 并行度必须小：Vercel Hobby 函数只有 1 vCPU，水印（sharp）是 CPU 密集操作，
   // 多张 4K 并行加水印会 CPU 排队导致全部超时（实测 6 并行 0 张成功）。
-  // 一轮最多 2 张并行，单张限时 80s。状态页每 60s 自动触发轮询会重叠，
-  // 候选随机打散让重叠轮询各自保存不同的图（自然分工），幂等机制保证不重不漏。
+  // 一轮最多 5 张并行（sharp 给 4K 加水印吃内存，1024MB 函数下一轮 5 张约 480MB 安全），单张限时 120s。
+  // 状态页每 60s 自动触发轮询会重叠，候选随机打散让重叠轮询各自保存不同的图（自然分工），幂等机制保证不重不漏。
   const pollTimeBudgetMs = Number(process.env.POLL_TIME_BUDGET_MS ?? 150000);
   const pollDeadline = pollStartedAt + pollTimeBudgetMs;
   // ⚠️ 4K 图「下载(APIMart) + sharp 水印 + 上传 COS(跨境)」实测需要 60~100s，
   // 旧值 60s 会把这些本已生成的图判定超时丢弃 → 永远存不下来（"10分钟0张"根因）。
   // 提到 120s，给慢速 4K 保存留足余量；受 route maxDuration=300s / 轮询预算 150s 上限保护。
   const SAVE_TIMEOUT_MS = Number(process.env.SAVE_TIMEOUT_MS ?? 120000);
-  const MAX_SAVE_PER_POLL = Number(process.env.MAX_SAVE_PER_POLL ?? 2);
+  const MAX_SAVE_PER_POLL = Number(process.env.MAX_SAVE_PER_POLL ?? 5);
   const MAX_QUERY_ERROR_POLLS = Number(process.env.MAX_TASK_POLL_COUNT ?? 60);
 
   // 本轮累积的变更：统一在处理结束后「一次性」写回 orders.json，
