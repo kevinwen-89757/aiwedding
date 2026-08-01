@@ -507,6 +507,19 @@ async function handleAdminOrderByIdPATCH(request: Request, id: string) {
     }));
     return NextResponse.json({ ok: true, apimartCreateCount: target });
   }
+  if (body.action === "reset_generation") {
+    // 整单重跑：作废当前所有生成结果（图 + 任务），把创建计数归零、状态拉回 ready_to_generate，
+    // 让下一次 start-generation 走 FRESH 路径重新提交全部任务（clearLocalGeneratedAssets 会清掉云端旧图）。
+    await updateLocalOrder(id, (order) => ({
+      ...order,
+      status: "ready_to_generate",
+      generation_jobs: [],
+      order_assets: (order.order_assets ?? []).filter((a) => a.kind !== "generated"),
+      metadata: { ...(order.metadata ?? {}), apimartCreateCount: 0 },
+      admin_note: `${order.admin_note ? order.admin_note + "\n" : ""}[${new Date().toISOString()}] 管理员触发整单重跑：已作废原生成图与任务、创建计数归零，状态置为 ready_to_generate。`
+    }));
+    return NextResponse.json({ ok: true, reset: true });
+  }
   const order = await updateLocalOrderStatus(id, body.status ?? current.status, { admin_note: body.adminNote ?? null, reject_reason: body.rejectReason ?? null });
   return order ? NextResponse.json({ ok: true }) : jsonError("Order not found", 404);
 }
