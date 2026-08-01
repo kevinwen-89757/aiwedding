@@ -221,7 +221,13 @@ async function handleOrderPollGenerationPOST(id: string) {
         (j.create_attempt ?? 1) < Number(process.env.MAX_CREATE_ATTEMPTS ?? 2) &&
         (Date.now() - Date.parse(j.created_at) > Number(process.env.STUCK_TASK_AGE_MS ?? 90 * 60 * 1000) || (j.poll_count ?? 0) >= Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 60))
     ).length;
-    const needsResubmit = (current.status === "ready_to_generate" && submitted === 0) || (current.status === "generating" && (submitted < planned || stuckCount > 0));
+    // 计费护栏：预算已耗尽时，重提必然因预算熔断创建 0 个任务、反而清空/打乱已有任务 → 丢失已生成的图。
+    // 此时不再走重提分支，改走 pollApiGeneration 把已提交的 4K 任务存下来。
+    const createBudgetRatio = Number(process.env.CREATE_BUDGET_RATIO ?? 1.5);
+    const budgetCap = Math.max(planned, Math.ceil(planned * createBudgetRatio));
+    const createCount = (current.metadata?.apimartCreateCount as number) ?? 0;
+    const budgetExhausted = createCount >= budgetCap;
+    const needsResubmit = !budgetExhausted && ((current.status === "ready_to_generate" && submitted === 0) || (current.status === "generating" && (submitted < planned || stuckCount > 0)));
     let order: Awaited<ReturnType<typeof getLocalOrder>> | null = current;
     let pollDebug: Record<string, unknown> | undefined;
     if (needsResubmit) {
@@ -551,9 +557,15 @@ async function handleAdminPollGenerationPOST(request: Request, id: string) {
         // pollApiGeneration → 已完成的图永远存不下来。
         (j) => (j.status === "polling" || j.status === "created") && ((j.create_attempt ?? 1) < Number(process.env.MAX_CREATE_ATTEMPTS ?? 2)) && (Date.now() - Date.parse(j.created_at) > Number(process.env.STUCK_TASK_AGE_MS ?? 90 * 60 * 1000) || (j.poll_count ?? 0) >= Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 60))
       ).length;
+      // 计费护栏：预算已耗尽时，重提必然因预算熔断创建 0 个任务、反而清空/打乱已有任务 → 丢失已生成的图。
+      // 此时不再走重提分支，改走 pollApiGeneration 把已提交的 4K 任务存下来。
+      const createBudgetRatio = Number(process.env.CREATE_BUDGET_RATIO ?? 1.5);
+      const budgetCap = Math.max(planned, Math.ceil(planned * createBudgetRatio));
+      const createCount = (current.metadata?.apimartCreateCount as number) ?? 0;
+      const budgetExhausted = createCount >= budgetCap;
       // 触发重提时本轮不再做重量级 poll 保存（避免与提交写竞争 orders.json、叠加超时），
       // 下一次 60s 自动轮询再查新任务；重提本身会 await 跑完（见下方分支）。
-      const needsResubmit = (current.status === "ready_to_generate" && submitted === 0) || (current.status === "generating" && (submitted < planned || stuckCount > 0));
+      const needsResubmit = !budgetExhausted && ((current.status === "ready_to_generate" && submitted === 0) || (current.status === "generating" && (submitted < planned || stuckCount > 0)));
       if (needsResubmit) {
         // 必须 await（不能 fire-and-forget）：Vercel 在 HTTP 响应返回后可能冻结后台任务，
         // 若用 fire-and-forget，重新提交会被截断、永远跑不完。await 期间函数保持存活，
