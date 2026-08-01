@@ -790,12 +790,14 @@ export async function pollApiGeneration(orderId: string) {
   // 多张 4K 并行加水印会 CPU 排队导致全部超时（实测 6 并行 0 张成功）。
   // 一轮最多 5 张并行（sharp 给 4K 加水印吃内存，1024MB 函数下一轮 5 张约 480MB 安全），单张限时 120s。
   // 状态页每 60s 自动触发轮询会重叠，候选随机打散让重叠轮询各自保存不同的图（自然分工），幂等机制保证不重不漏。
-  const pollTimeBudgetMs = Number(process.env.POLL_TIME_BUDGET_MS ?? 150000);
+  // ⚠️ 轮询总预算：必须 < route maxDuration(300s)，给结尾「一次性写回 orders.json」留 ~40s 余量。
+  // 调大到 260s：4K 图「下载+水印+上传」最慢可达 ~200s，必须给足才能让一轮把候选图存完。
+  const pollTimeBudgetMs = Number(process.env.POLL_TIME_BUDGET_MS ?? 260000);
   const pollDeadline = pollStartedAt + pollTimeBudgetMs;
-  // ⚠️ 4K 图「下载(APIMart) + sharp 水印 + 上传 COS(跨境)」实测需要 60~100s，
-  // 旧值 60s 会把这些本已生成的图判定超时丢弃 → 永远存不下来（"10分钟0张"根因）。
-  // 提到 120s，给慢速 4K 保存留足余量；受 route maxDuration=300s / 轮询预算 150s 上限保护。
-  const SAVE_TIMEOUT_MS = Number(process.env.SAVE_TIMEOUT_MS ?? 120000);
+  // ⚠️ 4K 图「下载(APIMart) + sharp 水印 + 上传 COS(跨境)」实测需要 60~200s（慢速图常 >120s），
+  // 旧值 60s/120s 会把本已生成的图判定超时丢弃 → 永远存不下来（"10分钟0张"根因）。
+  // 提到 230s（受 pollDeadline 与 maxDuration=300s 双重约束，保证结尾写回不被掐断）。
+  const SAVE_TIMEOUT_MS = Number(process.env.SAVE_TIMEOUT_MS ?? 230000);
   const MAX_SAVE_PER_POLL = Number(process.env.MAX_SAVE_PER_POLL ?? 5);
   const MAX_QUERY_ERROR_POLLS = Number(process.env.MAX_TASK_POLL_COUNT ?? 60);
 
