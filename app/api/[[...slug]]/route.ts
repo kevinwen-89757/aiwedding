@@ -407,9 +407,26 @@ async function handlePaymentsWechatNotifyPOST(request: Request) {
   if (!order) return new NextResponse(buildXml({ return_code: "FAIL", return_msg: "订单不存在" }), { status: 404, headers: { "Content-Type": "application/xml" } });
   try {
     await payLocalOrder(order.id, kind as "deposit" | "selection", outTradeNo);
-    // 注意：不在此处触发生成。微信要求回调必须在数秒内返回 SUCCESS，
-    // 否则会重复通知。生成由状态页每 60 秒的自动轮询（poll-generation
-    // 自愈逻辑）在用户停留在状态页时自动补启动。
+    // 微信要求回调数秒内返回 SUCCESS，故此处不同步触发生成（避免超时/重复通知）。
+    // 改为 fire-and-forget 尽力启动；若 Serverless 冻结导致未跑完，
+    // 状态页每 60 秒的自动轮询（poll-generation）会兜底补启动（顾客停留在状态页时）。
+    if (kind === "deposit") {
+      const { generateOrderPreviews, generateIdPhotoTasks } = await import("@/services/generation");
+      void (async () => {
+        try {
+          await generateOrderPreviews(order.id, { source: "admin" });
+        } catch (e) {
+          console.error("[wechat auto-generation] failed (poll will retry):", e);
+        }
+        if (order.photo_type === "casual_photo") {
+          try {
+            await generateIdPhotoTasks(order.id);
+          } catch (e) {
+            console.error("[id-photo] failed:", e);
+          }
+        }
+      })();
+    }
   } catch (error) {
     const msg = error instanceof Error ? error.message : "支付确认失败";
     return new NextResponse(buildXml({ return_code: "FAIL", return_msg: msg }), { status: 500, headers: { "Content-Type": "application/xml" } });
