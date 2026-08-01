@@ -660,7 +660,12 @@ async function saveCompletedApiJob(order: LocalOrder, job: GenerationJob, imageU
   // 用本轮已读取的订单对象查重（不再跨境重读 orders.json，每张省 2~5s）。
   // pendingAssets 是本轮已保存待写回的资产，一并查重防止同轮重复。
   const orderId = order.id;
-  if (hasAssetForTask(order, job.task_id) || pendingAssets.some((a) => a.generation_task_id === job.task_id)) return null;
+  // ⚠️ 该 task 的图已保存过（重叠轮询/断点续传时很常见）→ 必须判定【完成】。
+  // 旧代码这里 return null，调用方会把任务重新标回 polling，任务永远翻不成 completed，
+  // 订单永远卡在 generating、进不了选片页（"图都存下来了但订单不动"的根因）。
+  if (hasAssetForTask(order, job.task_id) || pendingAssets.some((a) => a.generation_task_id === job.task_id)) {
+    return { asset: null, notes: [] };
+  }
   // 同编号资产已存在 → 跳过
   if (
     order.order_assets.some((a) => a.kind === "generated" && a.sort_order === job.image_number) ||
@@ -911,6 +916,20 @@ export async function pollApiGeneration(orderId: string) {
         ]
       };
       next.order_assets.sort((a, b) => a.sort_order - b.sort_order);
+    }
+    // 生成图按【图片编号】去重：重叠轮询各自基于旧快照查重，会给同一张图写入两条资产记录
+    // （选片页会出现重复图）。这里以写回时的最新状态为准，同编号只保留第一条。
+    {
+      const seenGenerated = new Set<number>();
+      const dedupedAssets = next.order_assets.filter((a) => {
+        if (a.kind !== "generated") return true;
+        if (seenGenerated.has(a.sort_order)) return false;
+        seenGenerated.add(a.sort_order);
+        return true;
+      });
+      if (dedupedAssets.length !== next.order_assets.length) {
+        next = { ...next, order_assets: dedupedAssets };
+      }
     }
     if (jobUpdates.length) {
       next = {
