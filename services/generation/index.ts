@@ -292,11 +292,16 @@ export async function startApiGeneration(order: LocalOrder) {
   // 相同 prompt 重新提交（参考图 URL 已缓存在 metadata，不重复上传）。
   // 阈值：任务创建超过 20 分钟，或已轮询 >= 40 次仍无结果。
   const nowTs = Date.now();
-  // ⚠️ 阈值已从 20 分钟上调到 90 分钟：4K 生成本身就需要 20~40 分钟，
-  // 旧阈值会把「还在正常生成」的任务误判为卡死并删除重提，导致：
-  //   ① 误杀在跑任务（APIMart 其实在算）；② 重提受 38s 预算限制只重建一部分 → 永久丢图。
-  // 只有在跑超过 90 分钟（或轮询 ≥60 次）仍无结果，才视为被 APIMart 静默丢弃。
-  const STUCK_TASK_AGE_MS = Number(process.env.STUCK_TASK_AGE_MS ?? 90 * 60 * 1000);
+  // ⚠️ 阈值演进：20 分钟 → 90 分钟 → 6 小时。
+  // 90 分钟仍然太短，2026-08-03 订单 912be9a5 实测踩坑：
+  //   「提交阶段」本身就要花 1.5 小时（23 张 × 单张 40~70s，且提交时不做 poll 保存），
+  //   等全部交完时，最早那批任务的 created_at 已经逼近 90 分钟 → 立刻被判卡死 → 重提
+  //   → 重提分支又不做 poll 保存 → 后面的任务接着到期 → **无限重提循环，一张图都存不下来**，
+  //   且每次重提写回 orders.json 会覆盖并发写入（最后写赢），当次丢了图 2/3/4 三个 task_id。
+  // created_at 记的是「提交时刻」而非「APIMart 开始算的时刻」，排队时间也被计入，
+  // 因此阈值必须显著大于「提交总耗时 + 生成耗时」。6 小时给足余量；
+  // 真正被静默丢弃的任务仍会由 STUCK_TASK_POLL_THRESHOLD（轮询 ≥60 次）兜住。
+  const STUCK_TASK_AGE_MS = Number(process.env.STUCK_TASK_AGE_MS ?? 6 * 60 * 60 * 1000);
   const STUCK_TASK_POLL_THRESHOLD = Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 60);
   // 创建失败（task_id 以 create-failed-/empty-prompt- 开头）是「从未真正提交到 APIMart」的任务
   // （多为网络瞬时错），与生成失败不同，可安全用相同 prompt 重新提交，直到成功。

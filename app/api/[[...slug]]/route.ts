@@ -215,11 +215,11 @@ async function handleOrderPollGenerationPOST(id: string) {
     const submitted = current.generation_jobs?.length ?? 0;
     const stuckCount = (current.generation_jobs ?? []).filter(
       // ⚠️ 计费护栏：只有「还有重试额度」的卡死任务才触发重提，否则会无限重提反复扣费。
-      // ⚠️ 阈值与 startApiGeneration 对齐（90 分钟 / 60 次轮询）：4K 生成本身就慢，不能因超龄就重提。
+      // ⚠️ 阈值与 startApiGeneration 对齐（6 小时 / 60 次轮询）：4K 生成本身就慢，不能因超龄就重提。
       (j) =>
         (j.status === "polling" || j.status === "created") &&
         (j.create_attempt ?? 1) < Number(process.env.MAX_CREATE_ATTEMPTS ?? 2) &&
-        (Date.now() - Date.parse(j.created_at) > Number(process.env.STUCK_TASK_AGE_MS ?? 90 * 60 * 1000) || (j.poll_count ?? 0) >= Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 60))
+        (Date.now() - Date.parse(j.created_at) > Number(process.env.STUCK_TASK_AGE_MS ?? 6 * 60 * 60 * 1000) || (j.poll_count ?? 0) >= Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 60))
     ).length;
     // 计费护栏：预算已耗尽时，重提必然因预算熔断创建 0 个任务、反而清空/打乱已有任务 → 丢失已生成的图。
     // 此时不再走重提分支，改走 pollApiGeneration 把已提交的 4K 任务存下来。
@@ -582,10 +582,10 @@ async function handleAdminPollGenerationPOST(request: Request, id: string) {
       const planned = runtimeConfig?.plannedTaskCount ?? 0;
       const submitted = current.generation_jobs?.length ?? 0;
       const stuckCount = (current.generation_jobs ?? []).filter(
-        // ⚠️ 阈值与 startApiGeneration 对齐（90 分钟 / 60 次轮询）：4K 生成本身就慢，
-        // 若用 20 分钟阈值，正常生成的任务会被误判卡死 → 每 60s 走重提分支 → 永远不进
-        // pollApiGeneration → 已完成的图永远存不下来。
-        (j) => (j.status === "polling" || j.status === "created") && ((j.create_attempt ?? 1) < Number(process.env.MAX_CREATE_ATTEMPTS ?? 2)) && (Date.now() - Date.parse(j.created_at) > Number(process.env.STUCK_TASK_AGE_MS ?? 90 * 60 * 1000) || (j.poll_count ?? 0) >= Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 60))
+        // ⚠️ 阈值与 startApiGeneration 对齐（6 小时 / 60 次轮询）：4K 生成本身就慢，
+        // 阈值过短，正常生成的任务会被误判卡死 → 每 60s 走重提分支 → 永远不进
+        // pollApiGeneration → 已完成的图永远存不下来（20 分钟、90 分钟两版都踩过这个坑）。
+        (j) => (j.status === "polling" || j.status === "created") && ((j.create_attempt ?? 1) < Number(process.env.MAX_CREATE_ATTEMPTS ?? 2)) && (Date.now() - Date.parse(j.created_at) > Number(process.env.STUCK_TASK_AGE_MS ?? 6 * 60 * 60 * 1000) || (j.poll_count ?? 0) >= Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 60))
       ).length;
       // 计费护栏：预算已耗尽时，重提必然因预算熔断创建 0 个任务、反而清空/打乱已有任务 → 丢失已生成的图。
       // 此时不再走重提分支，改走 pollApiGeneration 把已提交的 4K 任务存下来。
