@@ -406,11 +406,19 @@ export async function startApiGeneration(order: LocalOrder) {
     return getLocalOrder(order.id);
   }
 
-  // 时间预算：Serverless 函数有 60 秒硬上限。单次调用最多提交到预算点就主动
-  // return，已提交的任务已落盘（见下方循环内的 updateLocalOrder），下一次轮询
-  // 会自动续交剩余任务。这样无论后台手动点击还是自动轮询，单次请求都不会超过
-  // Vercel 的 60 秒上限 → 不会再出现 504 网关超时。
-  const generationTimeBudgetMs = Number(process.env.GENERATION_TIME_BUDGET_MS ?? 38000);
+  // 时间预算：单次调用最多提交到预算点就主动 return，已提交的任务已落盘
+  // （见下方循环内的 updateLocalOrder），下一次轮询会自动续交剩余任务。
+  //
+  // ⚠️ 旧值 38000 是「Vercel 函数 60s 硬上限」时代的遗留值，现在 route maxDuration=300s。
+  // 实测单张 4K 创建耗时 15~45s，38s 预算一轮只能提交 1~2 张；而 poll-generation 在
+  // 「submitted < planned」时走的是重提分支、**本轮完全不做 poll 保存**，
+  // 于是 23 张图在全部提交完之前一张都不会被查询/保存 → 顾客看到「已生成 0 张」卡很久。
+  //
+  // 提到 90s：一轮可提交 3~5 张，23 张约 4~6 轮即可交完，之后立刻转入保存阶段。
+  // 上限压在 90s 而非 200s，是为了赶在 Cloudflare ~100s 掐断前把响应返回给客户端——
+  // 否则客户端 524、状态页 60s 后又发起一次轮询，两个函数并发提交会基于各自的旧快照
+  // 重复创建同一张图 → 重复扣费。90s 是「提交尽量快」与「不产生重叠轮询」的平衡点。
+  const generationTimeBudgetMs = Number(process.env.GENERATION_TIME_BUDGET_MS ?? 90000);
   const generationDeadline = Date.now() + generationTimeBudgetMs;
 
   // 断点续传：Serverless 函数有 60 秒上限，23 张图一次性提交会超时。

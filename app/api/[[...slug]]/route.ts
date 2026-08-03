@@ -599,8 +599,10 @@ async function handleAdminPollGenerationPOST(request: Request, id: string) {
       if (needsResubmit) {
         // 必须 await（不能 fire-and-forget）：Vercel 在 HTTP 响应返回后可能冻结后台任务，
         // 若用 fire-and-forget，重新提交会被截断、永远跑不完。await 期间函数保持存活，
-        // 且重新提交约 38s，远低于 Cloudflare ~100s / Vercel 300s 上限。
+        // 且重新提交预算 GENERATION_TIME_BUDGET_MS=90s，压在 Cloudflare ~100s 掐断前返回，
+        // 避免客户端 524 后状态页重复触发 → 两个函数并发提交同一张图重复扣费。
         // 本轮不再做重量级 poll 保存（避免叠加超时），下一次 60s 自动轮询再查新任务。
+        // ⚠️ 因此「提交阶段」越慢，顾客看到「已生成 0 张」的时间就越长——提交预算不能设太小。
         try {
           await generateOrderPreviews(id, { source: "admin" });
         } catch (e) {
