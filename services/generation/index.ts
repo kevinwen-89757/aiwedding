@@ -176,7 +176,10 @@ function apiProgressNote(lines: string[], resolution?: string) {
 
 function appendApiProgressNoteText(current: string | null, lines: string[]) {
   const base = current?.startsWith("API 生成记录") ? current : apiProgressNote([]);
-  const next = [base, ...lines].filter(Boolean).join("\n");
+  // 每条记录打上【北京时间】戳，方便事后对照排查（Kevin 在中国时区）。
+  const ts = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Shanghai" }).format(new Date());
+  const stamped = lines.filter(Boolean).map((l) => `[${ts}] ${l}`);
+  const next = [base, ...stamped].filter(Boolean).join("\n");
   return next.length > 10000 ? next.slice(next.length - 10000) : next;
 }
 
@@ -299,10 +302,12 @@ export async function startApiGeneration(order: LocalOrder) {
   //   → 重提分支又不做 poll 保存 → 后面的任务接着到期 → **无限重提循环，一张图都存不下来**，
   //   且每次重提写回 orders.json 会覆盖并发写入（最后写赢），当次丢了图 2/3/4 三个 task_id。
   // created_at 记的是「提交时刻」而非「APIMart 开始算的时刻」，排队时间也被计入，
-  // 因此阈值必须显著大于「提交总耗时 + 生成耗时」。6 小时给足余量；
-  // 真正被静默丢弃的任务仍会由 STUCK_TASK_POLL_THRESHOLD（轮询 ≥60 次）兜住。
-  const STUCK_TASK_AGE_MS = Number(process.env.STUCK_TASK_AGE_MS ?? 6 * 60 * 60 * 1000);
-  const STUCK_TASK_POLL_THRESHOLD = Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 60);
+  // 因此阈值必须显著大于「提交总耗时 + 生成耗时」。24 小时给足余量
+  // （此前 6 小时过短：顾客关掉状态页后无人轮询，正常排队的 4K 任务也会被误判卡死、
+  // 触发移除+重提，与预算熔断叠加会把部分任务永远弄丢）。
+  // 真正被静默丢弃的任务仍会由 STUCK_TASK_POLL_THRESHOLD（轮询 ≥200 次）兜住。
+  const STUCK_TASK_AGE_MS = Number(process.env.STUCK_TASK_AGE_MS ?? 24 * 60 * 60 * 1000);
+  const STUCK_TASK_POLL_THRESHOLD = Number(process.env.STUCK_TASK_POLL_THRESHOLD ?? 200);
   // 创建失败（task_id 以 create-failed-/empty-prompt- 开头）是「从未真正提交到 APIMart」的任务
   // （多为网络瞬时错），与生成失败不同，可安全用相同 prompt 重新提交，直到成功。
   // ⚠️ 例外：余额不足（HTTP 402 insufficient balance）在充值前重提必然再次失败，
