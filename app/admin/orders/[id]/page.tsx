@@ -46,7 +46,8 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
   const generated = order.order_assets.filter((asset: OrderAsset) => asset.kind === "generated");
   const generationJobs = order.generation_jobs ?? [];
   const generatedAssetsCount = generated.length;
-  const activeGenerationJobs = generationJobs.filter((job) => job.status !== "completed" && job.status !== "failed");
+  const completedGenerationJobs = generationJobs.filter((job) => job.status === "completed");
+  const activeGenerationJobs = generationJobs.filter((job) => job.status === "polling" || job.status === "created");
   const selectedThemes = getSelectedThemes(order.selected_theme_ids ?? []);
   const themeText = order.selected_theme_ids?.length ? selectedThemes.map((theme) => theme.themeName).join("、") : "未选择";
   const generationPlan = order.selected_theme_ids?.length ? getEffectiveOrderGenerationPlan(order) : [];
@@ -110,8 +111,9 @@ export default async function AdminOrderDetailPage({ params, searchParams }: Pag
           <h2>生成状态</h2>
           <p>模式：API 自动 / 人工</p>
           <p>计划：{generationPlan.length} 张</p>
-          <p>已完成：{generatedAssetsCount} 张</p>
-          <p>进行中：{activeGenerationJobs.length} 张</p>
+          <p>任务完成：{completedGenerationJobs.length} 张</p>
+          <p>任务轮询中：{activeGenerationJobs.length} 张</p>
+          <p>云端已保存：{generatedAssetsCount} 张</p>
           <ResolutionSelector orderId={order.id} currentResolution={order.generation_resolution} />
           {generationJobs.length > 0 && (
             <details>

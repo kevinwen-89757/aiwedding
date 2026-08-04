@@ -964,6 +964,26 @@ export async function pollApiGeneration(orderId: string) {
         })
       };
     }
+    // 幂等修正：图已经存到 order_assets，但任务状态仍卡在 polling/created 的，
+    // 直接翻成 completed。避免「每轮只保存 5 张，其余被 defer 回 polling」导致任务状态
+    // 长期滞后于资产保存，订单因此无法收尾进入选片页。
+    {
+      const savedSortOrders = new Set((next.order_assets ?? []).filter((a) => a.kind === "generated").map((a) => a.sort_order));
+      let fixedCount = 0;
+      next = {
+        ...next,
+        generation_jobs: (next.generation_jobs ?? []).map((job) => {
+          if ((job.status === "polling" || job.status === "created") && savedSortOrders.has(job.image_number)) {
+            fixedCount++;
+            return { ...job, status: "completed", updated_at: new Date().toISOString() };
+          }
+          return job;
+        })
+      };
+      if (fixedCount > 0) {
+        notes.push(`幂等修正：${fixedCount} 张图已保存但任务状态未同步，已自动标记完成。`);
+      }
+    }
     const allNotes = [...notes];
     // 状态收尾：基于写回后的最新 jobs 计算，并入同一次写，不再额外读写
     const jobsNow = next.generation_jobs ?? [];
