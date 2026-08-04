@@ -176,8 +176,12 @@ function apiProgressNote(lines: string[], resolution?: string) {
 
 function appendApiProgressNoteText(current: string | null, lines: string[]) {
   const base = current?.startsWith("API 生成记录") ? current : apiProgressNote([]);
-  // 每条记录打上【北京时间】戳，方便事后对照排查（Kevin 在中国时区）。
-  const ts = new Intl.DateTimeFormat("sv-SE", { timeZone: "Asia/Shanghai" }).format(new Date());
+  // 每条记录打上【北京时间】戳（含时分秒），方便事后对照排查（Kevin 在中国时区）。
+  const ts = new Intl.DateTimeFormat("sv-SE", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+  }).format(new Date());
   const stamped = lines.filter(Boolean).map((l) => `[${ts}] ${l}`);
   const next = [base, ...stamped].filter(Boolean).join("\n");
   return next.length > 10000 ? next.slice(next.length - 10000) : next;
